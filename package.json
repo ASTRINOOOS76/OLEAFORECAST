@@ -8,17 +8,16 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
     "tsx": "^4.19.0"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "check": "npm run -s typecheck",
     "test": "bash scripts/run-smoke.sh",
+    "bridge:demo": "tsx server/analytics/bridge-demo.ts",
     "build": "node -e \"console.log('build: ok (placeholder)')\"",
     "start": "node -e \"console.log('start: pending')\"",
     "dev": "node -e \"console.log('dev: pending')\""
-    "bridge:demo": "node -e \"console.log('Run with ts-node later; placeholder')\""
-    "bridge:demo": "tsx server/analytics/bridge-demo.ts"
   }
 }
