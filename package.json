@@ -14,7 +14,7 @@
     "typecheck": "tsc -p tsconfig.json",
     "check": "npm run -s typecheck",
     "lint": "node -e \"console.log('lint: pending')\"",
-    "test": "rm -rf .tmp_test && tsc -p tsconfig.json --outDir .tmp_test --noEmit false && node .tmp_test/server/analytics/__tests__/winner.smoke.js"
+   "test": "rm -rf .tmp_test && tsc -p tsconfig.json --outDir .tmp_test --noEmit false && node .tmp_test/server/analytics/__tests__/winner.smoke.js"
     "build": "node -e \"console.log('build: pending')\"",
     "start": "node -e \"console.log('start: pending')\"",
     "dev": "node -e \"console.log('dev: pending')\""
