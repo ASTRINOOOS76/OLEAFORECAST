@@ -5,10 +5,7 @@ function assert(cond: unknown, msg: string) {
   if (!cond) throw new Error(`ASSERT FAIL: ${msg}`);
 }
 
-const base = {
-  market: "ES",
-  horizon: "W4"
-} as const;
+const base = { market: "ES", horizon: "W4" } as const;
 
 const inputs: ModelEvalInput[] = [
   {
@@ -20,12 +17,11 @@ const inputs: ModelEvalInput[] = [
       availability: 0.95,
       biasEurPerTon: 40,
       mase: 1.05,
-      coverage: 0.80,
+      coverage: 0.8,
       intervalsAvailable: true
     }
   },
   {
-    // Should be ineligible (no intervals)
     modelId: "E1",
     market: base.market,
     horizon: base.horizon,
@@ -39,7 +35,6 @@ const inputs: ModelEvalInput[] = [
     }
   },
   {
-    // Eligible but worse bias
     modelId: "E2",
     market: base.market,
     horizon: base.horizon,
@@ -47,8 +42,8 @@ const inputs: ModelEvalInput[] = [
     metrics: {
       availability: 0.92,
       biasEurPerTon: 180,
-      mase: 1.00,
-      coverage: 0.80,
+      mase: 1.0,
+      coverage: 0.8,
       intervalsAvailable: true
     }
   }
