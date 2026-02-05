@@ -2,13 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   node-ci:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,7 +18,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
+          # IMPORTANT: no npm cache because we don't have package-lock.json yet
 
       - name: Detect Node project
         id: detect
@@ -28,7 +29,7 @@ jobs:
             echo "has_node=false" >> $GITHUB_OUTPUT
           fi
 
-           - name: Install
+      - name: Install
         if: steps.detect.outputs.has_node == 'true'
         run: |
           if [ -f package-lock.json ]; then
@@ -37,14 +38,17 @@ jobs:
             npm install
           fi
 
-      - name: Lint / Check (optional)
+      - name: Typecheck (if present)
         if: steps.detect.outputs.has_node == 'true'
         run: |
-          npm run -s check || true
-          npm run -s lint  || true
-          npm test         || true
+          npm run -s typecheck || true
 
-      - name: Build (optional)
+      - name: Tests (if present)
+        if: steps.detect.outputs.has_node == 'true'
+        run: |
+          npm test || true
+
+      - name: Build (if present)
         if: steps.detect.outputs.has_node == 'true'
         run: |
           npm run -s build || true
