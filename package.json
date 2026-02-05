@@ -13,7 +13,7 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "check": "npm run -s typecheck",
-    "test": "rm -rf .tmp_test && tsc -p tsconfig.json --outDir .tmp_test --noEmit false && node .tmp_test/server/analytics/__tests__/winner.smoke.js",
+   "test": "rm -rf .tmp_test && tsc -p tsconfig.json --outDir .tmp_test --noEmit false && node $(find .tmp_test -type f -name 'winner.smoke.js' | head -n 1)"
     "build": "node -e \"console.log('build: ok (placeholder)')\"",
     "start": "node -e \"console.log('start: pending')\"",
     "dev": "node -e \"console.log('dev: pending')\""
