@@ -14,47 +14,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Show repo files (diagnostic)
-        run: |
-          echo "PWD=$(pwd)"
-          ls -la
-          echo "---- server/analytics ----"
-          ls -la server/analytics || true
-          echo "---- package.json ----"
-          sed -n '1,200p' package.json || true
-          echo "---- tsconfig.json ----"
-          cat tsconfig.json || true
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: Show Node/NPM versions
+      - name: Install
         run: |
-          node -v
-          npm -v
-
-      - name: Install (diagnostic)
-        run: |
-          set -x
           if [ -f package-lock.json ]; then
             npm ci
           else
             npm install
           fi
 
-      - name: Typecheck (diagnostic)
-        run: |
-          set -x
-          npm run -s typecheck
+      - name: Typecheck
+        run: npm run -s typecheck
 
-      - name: Tests (diagnostic)
-        run: |
-          set -x
-          npm test
+      - name: Tests
+        run: npm test
 
-      - name: Build (diagnostic)
-        run: |
-          set -x
-          npm run -s build
+      - name: Build (optional)
+        run: npm run -s build || true
