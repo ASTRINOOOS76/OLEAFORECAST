@@ -17,5 +17,6 @@
     "build": "node -e \"console.log('build: ok (placeholder)')\"",
     "start": "node -e \"console.log('start: pending')\"",
     "dev": "node -e \"console.log('dev: pending')\""
+    "bridge:demo": "node -e \"console.log('Run with ts-node later; placeholder')\""
   }
 }
