@@ -1,0 +1,31 @@
+# OleaForecast
+
+Forecasting & decision-support system for olive oil markets.
+
+## What this repo is
+OleaForecast is a production-minded forecasting application that:
+- ingests market data (spot/weekly/monthly time series)
+- runs multiple forecasting experts
+- applies serving gates (availability / bias / MASE / interval coverage)
+- selects a champion forecast and exposes outputs for dashboards/API
+
+## Repo principles
+- No secrets in git (use `.env` locally; commit only `.env.example`)
+- Deterministic builds (pin deps; CI runs on every push)
+- Guardrails first (gates + audit trail are non-negotiable)
+
+## Quick start (conceptual)
+- Configure environment variables (see `.env.example`)
+- Install dependencies
+- Run dev server
+
+## Structure (high level)
+- `server/` backend (gates, scoring, APIs)
+- `ml/`     forecasting engines / utilities
+- `client/` (if present) UI / dashboard
+
+## Notes
+This repository is intentionally strict about:
+- model eligibility (hard-fail gates)
+- confidence / interval integrity
+- auditability (why a model won)
