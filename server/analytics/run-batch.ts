@@ -4,24 +4,25 @@ import { loadActualsCsv } from "./load-actuals";
 import { loadForecastJson } from "./load-forecast";
 import { toEvalInput } from "./evaluator";
 import { decideWinner } from "./winner-service";
+import type { WinnerDecision } from "./types";
 
 type BatchResult = {
   market: string;
   horizon: string;
   winnerModelId: string;
-  ranked: Array<{ modelId: string; score: number }>;
+  ranked: WinnerDecision["ranked"]; // keep exact type from WinnerDecision
 };
 
 function listDirs(path: string): string[] {
   return readdirSync(path, { withFileTypes: true })
-    .filter(d => d.isDirectory())
-    .map(d => d.name);
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
 }
 
 function listJsonFiles(path: string): string[] {
   return readdirSync(path, { withFileTypes: true })
-    .filter(d => d.isFile() && d.name.toLowerCase().endsWith(".json"))
-    .map(d => d.name);
+    .filter((d) => d.isFile() && d.name.toLowerCase().endsWith(".json"))
+    .map((d) => d.name);
 }
 
 function usage() {
@@ -29,8 +30,8 @@ function usage() {
   tsx server/analytics/run-batch.ts <dataRoot>
 
 Expected structure:
-  data/<MARKET>/<HORIZON>/actuals.csv
-  data/<MARKET>/<HORIZON>/*.json (forecast payloads)
+  <dataRoot>/<MARKET>/<HORIZON>/actuals.csv
+  <dataRoot>/<MARKET>/<HORIZON>/*.json  (forecast payloads)
 
 Example:
   tsx server/analytics/run-batch.ts data
@@ -57,11 +58,15 @@ for (const market of markets) {
     if (!existsSync(actualsPath)) continue;
 
     const actuals = loadActualsCsv(actualsPath);
-    const forecastFiles = listJsonFiles(hzPath).filter(f => f !== "actuals.json");
 
-    if (forecastFiles.length === 0) continue;
+    // all json files in the horizon folder are treated as model payloads
+    const forecastFiles = listJsonFiles(hzPath);
 
-    const evals = forecastFiles.map((f) => {
+    // ignore accidental files named like actuals.json etc.
+    const modelFiles = forecastFiles.filter((f) => f.toLowerCase() !== "actuals.json");
+    if (modelFiles.length === 0) continue;
+
+    const evals = modelFiles.map((f) => {
       const payload = loadForecastJson(join(hzPath, f));
       return toEvalInput(payload, actuals, { medianPriceEurPerTon: actuals.at(-1)?.value });
     });
@@ -72,7 +77,7 @@ for (const market of markets) {
       market,
       horizon,
       winnerModelId: decision.winnerModelId,
-      ranked: decision.ranked.map(r => ({ modelId: r.modelId, score: r.score }))
+      ranked: decision.ranked
     });
   }
 }
