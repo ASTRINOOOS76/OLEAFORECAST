@@ -42,6 +42,7 @@ const results: Array<{
   market: string;
   horizon: string;
   winnerModelId: string;
+  top3: string[];
   ranked: any;
   actualsQuality: {
     count: number;
@@ -63,24 +64,23 @@ for (const market of listDirs(dataRoot)) {
     const actuals = loadActualsCsv(actualsPath);
     const q = assertActualsQuality(actuals);
 
-    const modelFiles = listJsonFiles(hzPath).filter(
-      (f) => f.toLowerCase() !== "actuals.json"
-    );
+    const modelFiles = listJsonFiles(hzPath).filter((f) => f.toLowerCase() !== "actuals.json");
     if (modelFiles.length === 0) continue;
 
     const evals = modelFiles.map((f) => {
       const payload = loadForecastJson(join(hzPath, f));
-      return toEvalInput(payload, actuals, {
-        medianPriceEurPerTon: actuals.at(-1)?.value
-      });
+      return toEvalInput(payload, actuals, { medianPriceEurPerTon: actuals.at(-1)?.value });
     });
 
     const decision = decideWinner(market as any, horizon as any, evals);
+
+    const top3 = decision.ranked.slice(0, 3).map((r: any) => r.modelId);
 
     results.push({
       market,
       horizon,
       winnerModelId: decision.winnerModelId,
+      top3,
       ranked: decision.ranked,
       actualsQuality: q
     });
@@ -96,13 +96,15 @@ md.push("# Batch Winners");
 md.push("");
 md.push(`Generated at: ${report.generatedAt}`);
 md.push("");
-md.push("| Market | Horizon | Winner | Actuals N | Sorted |");
-md.push("|---|---|---:|---:|---|");
+md.push("| Market | Horizon | Winner | Top-3 | Actuals N |");
+md.push("|---|---|---:|---|---:|");
+
 for (const r of results) {
-  md.push(`| ${r.market} | ${r.horizon} | ${r.winnerModelId} | ${r.actualsQuality.count} | ${r.actualsQuality.isSorted ? "yes" : "no"} |`);
+  md.push(`| ${r.market} | ${r.horizon} | ${r.winnerModelId} | ${r.top3.join(", ")} | ${r.actualsQuality.count} |`);
 }
+
 md.push("");
-md.push("> Note: Duplicate dates or non-finite values will fail the run (data quality gate).");
+md.push("> Note: Forecast JSON is validated + quality-gated + path-consistent. Actuals are quality-gated.");
 
 writeText("reports/README.md", md.join("\n"));
 
