@@ -38,12 +38,17 @@ if (!dataRoot) {
   process.exit(2);
 }
 
+type IneligibleItem = {
+  modelId: string;
+  reasons: string[];
+};
+
 const results: Array<{
   market: string;
   horizon: string;
   winnerModelId: string;
   top3: string[];
-  ranked: any;
+  ineligible: IneligibleItem[];
   actualsQuality: {
     count: number;
     duplicates: string[];
@@ -72,16 +77,33 @@ for (const market of listDirs(dataRoot)) {
       return toEvalInput(payload, actuals, { medianPriceEurPerTon: actuals.at(-1)?.value });
     });
 
-    const decision = decideWinner(market as any, horizon as any, evals);
+    const decision: any = decideWinner(market as any, horizon as any, evals);
 
     const top3 = decision.ranked.slice(0, 3).map((r: any) => r.modelId);
+
+    // decision.gates is assumed present from selectWinner output
+    const ineligible: IneligibleItem[] = [];
+    const gates = decision.gates ?? {};
+    for (const [modelId, gateInfo] of Object.entries(gates)) {
+      const gi: any = gateInfo;
+      if (gi?.eligible === true) continue;
+
+      const reasons: string[] = [];
+      const failed = gi?.failedGates ?? gi?.failed ?? gi?.reasons ?? [];
+      if (Array.isArray(failed) && failed.length) {
+        for (const x of failed) reasons.push(String(x));
+      }
+      if (reasons.length === 0) reasons.push("ineligible");
+
+      ineligible.push({ modelId, reasons });
+    }
 
     results.push({
       market,
       horizon,
       winnerModelId: decision.winnerModelId,
       top3,
-      ranked: decision.ranked,
+      ineligible,
       actualsQuality: q
     });
   }
@@ -96,14 +118,29 @@ md.push("# Batch Winners");
 md.push("");
 md.push(`Generated at: ${report.generatedAt}`);
 md.push("");
-md.push("| Market | Horizon | Winner | Top-3 | Actuals N |");
-md.push("|---|---|---:|---|---:|");
+md.push("| Market | Horizon | Winner | Top-3 | Ineligible | Actuals N |");
+md.push("|---|---|---:|---|---:|---:|");
 
 for (const r of results) {
-  md.push(`| ${r.market} | ${r.horizon} | ${r.winnerModelId} | ${r.top3.join(", ")} | ${r.actualsQuality.count} |`);
+  md.push(
+    `| ${r.market} | ${r.horizon} | ${r.winnerModelId} | ${r.top3.join(", ")} | ${r.ineligible.length} | ${r.actualsQuality.count} |`
+  );
 }
 
 md.push("");
+md.push("## Ineligible details");
+md.push("");
+
+for (const r of results) {
+  if (r.ineligible.length === 0) continue;
+
+  md.push(`### ${r.market} / ${r.horizon}`);
+  for (const x of r.ineligible) {
+    md.push(`- **${x.modelId}**: ${x.reasons.join(", ")}`);
+  }
+  md.push("");
+}
+
 md.push("> Note: Forecast JSON is validated + quality-gated + path-consistent. Actuals are quality-gated.");
 
 writeText("reports/README.md", md.join("\n"));
