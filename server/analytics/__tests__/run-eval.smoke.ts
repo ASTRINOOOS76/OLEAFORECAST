@@ -7,9 +7,9 @@ function assert(cond: unknown, msg: string) {
   if (!cond) throw new Error(`ASSERT FAIL: ${msg}`);
 }
 
-const actuals = loadActualsCsv("data/ES_W4_actuals.csv");
-const p0 = loadForecastJson("data/E0_ES_W4.json");
-const p2 = loadForecastJson("data/E2_ES_W4.json");
+const actuals = loadActualsCsv("data/ES/W4/actuals.csv");
+const p0 = loadForecastJson("data/ES/W4/E0.json");
+const p2 = loadForecastJson("data/ES/W4/E2.json");
 
 const e0 = toEvalInput(p0, actuals, { medianPriceEurPerTon: actuals.at(-1)?.value });
 const e2 = toEvalInput(p2, actuals, { medianPriceEurPerTon: actuals.at(-1)?.value });
