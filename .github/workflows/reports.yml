@@ -2,13 +2,6 @@ name: reports
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - "server/**"
-      - "data/**"
-      - "package.json"
-      - "tsconfig.json"
-      - ".github/workflows/reports.yml"
 
 jobs:
   batch-reports:
