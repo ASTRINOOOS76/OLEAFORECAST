@@ -91,7 +91,7 @@ for (const market of listDirs(dataRoot)) {
       const reasons: string[] = [];
       const failed = gi?.failedGates ?? gi?.failed ?? gi?.reasons ?? [];
       if (Array.isArray(failed) && failed.length) {
-        for (const x of failed) reasons.push(String(x));
+        for (const x of failed) reasons.push(String(x).replaceAll("\\", "/"));
       }
       if (reasons.length === 0) reasons.push("ineligible");
 
