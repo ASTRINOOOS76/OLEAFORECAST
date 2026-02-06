@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>OleaForecast Dashboard</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+    h1 { margin: 0 0 6px; }
+    .muted { color: #666; margin: 0 0 18px; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 12px 0 18px; }
+    input, select { padding: 8px 10px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
+    th { background: #f6f6f6; text-align: left; }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; background:#eee; margin-right: 6px; }
+    details { margin: 10px 0; }
+    .err { padding: 12px; background: #fff4f4; border: 1px solid #f3b5b5; }
+    .ok { padding: 12px; background: #f4fff6; border: 1px solid #b5f3c0; }
+    .small { font-size: 12px; }
+    a { color: inherit; }
+  </style>
+</head>
+<body>
+  <h1>OleaForecast</h1>
+  <p class="muted">Live dashboard from latest <code>reports/winners.json</code> published to GitHub Pages.</p>
+
+  <div id="status" class="ok small">Loading</div>
+
+  <div class="row">
+    <label>Filter market:
+      <select id="marketFilter">
+        <option value="">All</option>
+      </select>
+    </label>
+
+    <label>Search:
+      <input id="search" placeholder="ES / IT / W4 / modelId" />
+    </label>
+
+    <span class="small muted" id="meta"></span>
+  </div>
+
+  <table id="tbl">
+    <thead>
+      <tr>
+        <th>Market</th>
+        <th>Horizon</th>
+        <th>Winner</th>
+        <th>Top-3</th>
+        <th>Ineligible</th>
+        <th>Actuals N</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Ineligible details</h2>
+  <div id="ineligible"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      }[c]));
+    }
+
+    function setStatus(ok, msg) {
+      const el = $("status");
+      el.className = (ok ? "ok" : "err") + " small";
+      el.textContent = msg;
+    }
+
+    function uniq(arr) {
+      return Array.from(new Set(arr));
+    }
+
+    function render(data) {
+      const results = data.results || [];
+      $("meta").textContent = `generatedAt: ${data.generatedAt || "n/a"}  rows: ${results.length}`;
+
+      // market filter options
+      const markets = uniq(results.map(r => r.market)).sort();
+      const mf = $("marketFilter");
+      mf.innerHTML = `<option value="">All</option>` + markets.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join("");
+
+      function applyFilter() {
+        const mSel = mf.value;
+        const q = $("search").value.trim().toLowerCase();
+
+        const filtered = results.filter(r => {
+          if (mSel && r.market !== mSel) return false;
+          if (!q) return true;
+          const blob = `${r.market} ${r.horizon} ${r.winnerModelId} ${(r.top3||[]).join(" ")} ${(r.ineligible||[]).map(x=>x.modelId).join(" ")}`.toLowerCase();
+          return blob.includes(q);
+        });
+
+        // table
+        const tbody = $("tbl").querySelector("tbody");
+        tbody.innerHTML = filtered.map(r => `
+          <tr>
+            <td>${esc(r.market)}</td>
+            <td>${esc(r.horizon)}</td>
+            <td><span class="tag">${esc(r.winnerModelId)}</span></td>
+            <td>${(r.top3||[]).map(x => `<span class="tag">${esc(x)}</span>`).join("")}</td>
+            <td>${esc((r.ineligible||[]).length)}</td>
+            <td>${esc(r.actualsQuality?.count ?? "")}</td>
+          </tr>
+        `).join("");
+
+        // ineligible details
+        const box = $("ineligible");
+        const blocks = filtered
+          .filter(r => (r.ineligible||[]).length > 0)
+          .map(r => {
+            const items = (r.ineligible||[]).map(x =>
+              `<li><b>${esc(x.modelId)}</b>: ${esc((x.reasons||[]).join(", "))}</li>`
+            ).join("");
+            return `
+              <details>
+                <summary><b>${esc(r.market)} / ${esc(r.horizon)}</b>  ineligible: ${(r.ineligible||[]).length}</summary>
+                <ul>${items}</ul>
+              </details>
+            `;
+          });
+
+        box.innerHTML = blocks.length ? blocks.join("") : `<p class="muted">No ineligible models in current filter.</p>`;
+      }
+
+      mf.onchange = applyFilter;
+      $("search").oninput = applyFilter;
+      applyFilter();
+    }
+
+    async function main() {
+      try {
+        setStatus(true, "Loading winners.json");
+        const res = await fetch("./winners.json", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setStatus(true, "OK");
+        render(data);
+      } catch (e) {
+        setStatus(false, "Failed to load winners.json. Did Pages deploy run? " + (e?.message || e));
+      }
+    }
+
+    main();
+  </script>
+</body>
+</html>
