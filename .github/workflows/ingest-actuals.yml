@@ -1,0 +1,44 @@
+name: ingest-actuals
+
+on:
+  workflow_dispatch:
+    inputs:
+      markets:
+        description: "Comma-separated markets (e.g. ES,IT,GR,TN,PT,TR)"
+        required: false
+        default: "ES,IT,GR,TN,PT,TR"
+      horizon:
+        description: "Horizon folder (e.g. W4)"
+        required: false
+        default: "W4"
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run -s typecheck
+
+      - name: Generate actuals (canonical)
+        run: npm run -s ingest:canonical -- --markets "${{ inputs.markets }}" --horizon "${{ inputs.horizon }}"
+
+      - name: Upload generated actuals as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: oleaforecast-actuals-${{ inputs.horizon }}
+          path: data/*/${{ inputs.horizon }}/actuals.csv
+          if-no-files-found: error
+          retention-days: 14
