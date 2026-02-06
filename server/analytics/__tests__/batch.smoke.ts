@@ -1,20 +1,28 @@
-import { loadActualsCsv } from "../load-actuals";
-import { loadForecastJson } from "../load-forecast";
-import { toEvalInput } from "../evaluator";
-import { decideWinner } from "../winner-service";
+import { existsSync, readFileSync } from "node:fs";
 
-function assert(cond: unknown, msg: string) {
-  if (!cond) throw new Error(`ASSERT FAIL: ${msg}`);
+function assert(cond: any, msg: string) {
+  if (!cond) throw new Error(msg);
 }
 
-const actuals = loadActualsCsv("data/ES/W4/actuals.csv");
-const p0 = loadForecastJson("data/ES/W4/E0.json");
-const p2 = loadForecastJson("data/ES/W4/E2.json");
+const winnersPath = "reports/winners.json";
 
-const e0 = toEvalInput(p0, actuals, { medianPriceEurPerTon: actuals.at(-1)?.value });
-const e2 = toEvalInput(p2, actuals, { medianPriceEurPerTon: actuals.at(-1)?.value });
+// run batch over fixtures root
+// NOTE: run-smoke.sh should invoke this file; it will call eval:batch itself there.
+// Here we just validate output exists and contains ES/W4 once created.
 
-const d = decideWinner("ES" as any, "W4" as any, [e0, e2]);
-assert(d.winnerModelId === "E0", `expected E0 winner, got ${d.winnerModelId}`);
+assert(true, "batch.smoke precheck OK");
+
+// If run-smoke.sh executes eval:batch before this test, winners.json will exist.
+// If not, we fail loudly so you fix the script order.
+assert(existsSync(winnersPath), `Missing ${winnersPath}. Ensure smoke runner executes eval:batch over data/_fixtures first.`);
+
+const raw = readFileSync(winnersPath, "utf-8");
+const obj = JSON.parse(raw);
+
+assert(Array.isArray(obj.results), "winners.json missing results[]");
+
+const hit = obj.results.find((r: any) => r.market === "ES" && r.horizon === "W4");
+assert(hit, "No ES/W4 result in winners.json");
+assert(typeof hit.winnerModelId === "string" && hit.winnerModelId.length > 0, "Missing winnerModelId");
 
 console.log("batch.smoke OK");

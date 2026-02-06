@@ -8,9 +8,13 @@ export function assertPathConsistency(filePath: string, payload: ModelForecastPa
   const i = parts.findIndex((p) => p === "data");
   if (i === -1 || parts.length < i + 4) return; // if not under /data, skip
 
-  const market = parts[i + 1];
-  const horizon = parts[i + 2];
-  const filename = parts[i + 3];
+  const isFixture = parts[i + 1] === "_fixtures";
+  const offset = isFixture ? 2 : 1;
+  if (parts.length < i + offset + 3) return;
+
+  const market = parts[i + offset];
+  const horizon = parts[i + offset + 1];
+  const filename = parts[i + offset + 2];
   const model = filename.toLowerCase().endsWith(".json")
     ? filename.slice(0, -5)
     : filename;

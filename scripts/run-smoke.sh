@@ -1,20 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-rm -rf .tmp_test
-./node_modules/.bin/tsc -p tsconfig.json --outDir .tmp_test --noEmit false
+echo "[smoke] typecheck"
+npm run -s typecheck
 
-echo "Running smoke tests:"
-find .tmp_test -type f -name '*.smoke.js' | sort
+echo "[smoke] clean reports"
+rm -rf reports
 
-FOUND="$(find .tmp_test -type f -name '*.smoke.js' | head -n 1 || true)"
-if [ -z "${FOUND}" ]; then
-  echo "No smoke tests found after compilation. Listing .tmp_test:"
-  find .tmp_test -maxdepth 6 -type f | sed -n '1,200p'
-  exit 1
-fi
+echo "[smoke] batch over fixtures"
+npx -y tsx server/analytics/run-batch.ts data/_fixtures
 
-while IFS= read -r f; do
-  echo "==> node $f"
-  node "$f"
-done < <(find .tmp_test -type f -name '*.smoke.js' | sort)
+echo "[smoke] run-eval smoke"
+npx -y tsx server/analytics/__tests__/run-eval.smoke.ts
+
+echo "[smoke] batch smoke"
+npx -y tsx server/analytics/__tests__/batch.smoke.ts
+
+echo "[smoke] OK"
