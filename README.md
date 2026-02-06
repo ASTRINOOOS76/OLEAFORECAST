@@ -28,6 +28,7 @@ OleaForecast is a production-minded forecasting application that:
 - Python deps: `requirements.txt`
 - Secrets: add key/value pairs in Streamlit Cloud (see `.streamlit/secrets.toml.example`)
 - Update data: `npm run -s eval:batch -- data` (regenerates `reports/winners.json`)
+- Scheduled refresh: GitHub Actions workflow `refresh-data` updates `reports/winners.json` and `reports/run-meta.json`
 
 ## Structure (high level)
 - `server/` backend (gates, scoring, APIs)

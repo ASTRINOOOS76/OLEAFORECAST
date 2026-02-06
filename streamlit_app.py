@@ -13,6 +13,7 @@ DATA_DIR = ROOT / "data"
 FIXTURES_DIR = DATA_DIR / "_fixtures"
 REPORTS_DIR = ROOT / "reports"
 DIST_HISTORY_DIR = ROOT / "dist" / "history"
+RUN_META_PATH = REPORTS_DIR / "run-meta.json"
 
 
 @st.cache_data(show_spinner=False)
@@ -46,6 +47,27 @@ def load_history_run(run_key: str) -> dict[str, Any]:
     return json.loads(run_path.read_text(encoding="utf-8"))
 
 
+@st.cache_data(show_spinner=False)
+def load_run_meta() -> dict[str, Any] | None:
+    if not RUN_META_PATH.exists():
+        return None
+    return json.loads(RUN_META_PATH.read_text(encoding="utf-8"))
+
+
+@st.cache_data(show_spinner=False)
+def list_models(market: str, horizon: str) -> list[str]:
+    models: set[str] = set()
+    for base in [DATA_DIR, FIXTURES_DIR]:
+        folder = base / market / horizon
+        if not folder.exists():
+            continue
+        for path in folder.glob("*.json"):
+            if path.name == "winners.json":
+                continue
+            models.add(path.stem)
+    return sorted(models)
+
+
 def load_actuals(market: str, horizon: str) -> tuple[pd.DataFrame, str]:
     paths = [
         DATA_DIR / market / horizon / "actuals.csv",
@@ -73,26 +95,54 @@ def load_forecast(market: str, horizon: str, model_id: str) -> tuple[pd.DataFram
     raise FileNotFoundError(f"forecast not found for {market}/{horizon}/{model_id}")
 
 
-def build_chart(actuals: pd.DataFrame, forecast: pd.DataFrame) -> alt.Chart:
-    actuals_line = (
-        alt.Chart(actuals)
-        .mark_line(color="#555", strokeWidth=2)
-        .encode(x="date:T", y="value:Q")
-    )
+def build_chart(
+    actuals: pd.DataFrame,
+    forecast: pd.DataFrame,
+    compare: pd.DataFrame | None = None,
+    show_actuals: bool = True,
+    show_band: bool = True,
+) -> alt.Chart:
+    layers: list[alt.Chart] = []
 
-    band = (
-        alt.Chart(forecast)
-        .mark_area(color="#111", opacity=0.08)
-        .encode(x="date:T", y="p10:Q", y2="p90:Q")
-    )
+    if show_band and not forecast.empty:
+        band = (
+            alt.Chart(forecast)
+            .mark_area(color="#111", opacity=0.08)
+            .encode(
+                x="date:T",
+                y="p10:Q",
+                y2="p90:Q",
+                tooltip=["date:T", "p10:Q", "p50:Q", "p90:Q"],
+            )
+        )
+        layers.append(band)
 
-    p50_line = (
-        alt.Chart(forecast)
-        .mark_line(color="#111", strokeWidth=2)
-        .encode(x="date:T", y="p50:Q")
-    )
+    if not forecast.empty:
+        p50_line = (
+            alt.Chart(forecast)
+            .mark_line(color="#111", strokeWidth=2)
+            .encode(x="date:T", y="p50:Q", tooltip=["date:T", "p50:Q"])
+        )
+        layers.append(p50_line)
 
-    return (band + p50_line + actuals_line).properties(height=280)
+    if show_actuals and not actuals.empty:
+        actuals_line = (
+            alt.Chart(actuals)
+            .mark_line(color="#555", strokeWidth=2)
+            .encode(x="date:T", y="value:Q", tooltip=["date:T", "value:Q"])
+        )
+        layers.append(actuals_line)
+
+    if compare is not None and not compare.empty:
+        compare_line = (
+            alt.Chart(compare)
+            .mark_line(color="#1f77b4", strokeWidth=2, strokeDash=[4, 2])
+            .encode(x="date:T", y="p50:Q", tooltip=["date:T", "p50:Q"])
+        )
+        layers.append(compare_line)
+
+    chart = alt.layer(*layers).properties(height=280)
+    return chart.interactive()
 
 
 def main() -> None:
@@ -117,7 +167,15 @@ def main() -> None:
         st.stop()
 
     results = data.get("results", [])
+    run_meta = load_run_meta()
     st.caption(f"generatedAt: {data.get('generatedAt', 'n/a')} · rows: {len(results)}")
+    if run_meta:
+        st.caption(
+            "runMeta: "
+            f"generatedAt={run_meta.get('generatedAt', 'n/a')} · "
+            f"gitSha={run_meta.get('gitSha', 'n/a')} · "
+            f"dataHash={run_meta.get('dataHash', 'n/a')}"
+        )
 
     markets = sorted({r.get("market", "") for r in results if r.get("market")})
     market_filter = st.selectbox("Market", options=["All"] + markets)
@@ -175,9 +233,27 @@ def main() -> None:
     horizon = selected.get("horizon")
     winner = selected.get("winnerModelId")
 
+    all_models = list_models(market, horizon)
+    if winner not in all_models:
+        all_models = [winner] + [m for m in all_models if m != winner]
+
+    model_cols = st.columns(3)
+    with model_cols[0]:
+        model_choice = st.selectbox("Model", options=all_models, index=0)
+    with model_cols[1]:
+        compare_choice = st.selectbox("Compare", options=["None"] + all_models, index=0)
+    with model_cols[2]:
+        last_n = st.slider("Chart window (points)", min_value=0, max_value=200, value=0, step=5)
+
+    compare_df = None
     try:
         actuals_df, actuals_path = load_actuals(market, horizon)
-        forecast_df, forecast_json, forecast_path = load_forecast(market, horizon, winner)
+        forecast_df, forecast_json, forecast_path = load_forecast(market, horizon, model_choice)
+        if compare_choice != "None" and compare_choice != model_choice:
+            try:
+                compare_df, _, _ = load_forecast(market, horizon, compare_choice)
+            except Exception as exc:
+                st.warning(f"Compare load failed: {exc}")
     except Exception as exc:
         st.error(f"Load failed: {exc}")
         return
@@ -191,13 +267,36 @@ def main() -> None:
     st.write(
         {
             "generatedAt": forecast_json.get("generatedAt", "n/a"),
-            "modelId": forecast_json.get("modelId", winner),
+            "modelId": forecast_json.get("modelId", model_choice),
             "market": forecast_json.get("market", market),
             "horizon": forecast_json.get("horizon", horizon),
             "actuals_rows": len(actuals_df),
             "forecast_points": len(forecast_df),
         }
     )
+
+    download_cols = st.columns(3)
+    with download_cols[0]:
+        st.download_button(
+            "Download actuals.csv",
+            actuals_df.to_csv(index=False).encode("utf-8"),
+            file_name=f"{market}_{horizon}_actuals.csv",
+            mime="text/csv",
+        )
+    with download_cols[1]:
+        st.download_button(
+            "Download forecast.json",
+            json.dumps(forecast_json, indent=2).encode("utf-8"),
+            file_name=f"{market}_{horizon}_{model_choice}.json",
+            mime="application/json",
+        )
+    with download_cols[2]:
+        st.download_button(
+            "Download forecast.csv",
+            forecast_df.to_csv(index=False).encode("utf-8"),
+            file_name=f"{market}_{horizon}_{model_choice}.csv",
+            mime="text/csv",
+        )
 
     tail_cols = st.columns(2)
     with tail_cols[0]:
@@ -211,6 +310,10 @@ def main() -> None:
     st.markdown("**Overlap check**")
     overlap = sorted(set(actuals_df["date"]).intersection(set(forecast_df["date"])))
     miss = sorted(set(forecast_df["date"]) - set(actuals_df["date"]))
+    coverage = (len(overlap) / len(forecast_df)) if len(forecast_df) else 0.0
+    st.metric("Coverage", f"{coverage:.0%}")
+    if coverage < 0.6:
+        st.warning("Low overlap between actuals and forecast points.")
     st.code(
         "\n".join(
             [
@@ -222,7 +325,26 @@ def main() -> None:
     )
 
     st.markdown("**Chart**")
-    chart = build_chart(actuals_df, forecast_df)
+    show_actuals = st.checkbox("Show actuals line", value=True)
+    show_band = st.checkbox("Show p10/p90 band", value=True)
+
+    chart_actuals = actuals_df.copy()
+    chart_forecast = forecast_df.copy()
+    chart_compare = compare_df.copy() if compare_df is not None else None
+
+    if last_n > 0:
+        chart_actuals = chart_actuals.tail(last_n)
+        chart_forecast = chart_forecast.tail(last_n)
+        if chart_compare is not None:
+            chart_compare = chart_compare.tail(last_n)
+
+    chart = build_chart(
+        chart_actuals,
+        chart_forecast,
+        compare=chart_compare,
+        show_actuals=show_actuals,
+        show_band=show_band,
+    )
     st.altair_chart(chart, use_container_width=True)
 
     st.subheader("Ineligible details")

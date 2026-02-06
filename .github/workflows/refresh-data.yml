@@ -1,0 +1,59 @@
+name: refresh-data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 3 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install
+        run: npm ci
+
+      - name: Generate reports (winners.json)
+        run: npm run -s eval:batch -- data
+
+      - name: Build run metadata
+        run: |
+          set -e
+          DATA_HASH=$(find data -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')
+          export DATA_HASH
+          node - <<'NODE'
+          const fs = require('fs');
+          const meta = {
+            generatedAt: new Date().toISOString(),
+            gitSha: process.env.GITHUB_SHA,
+            runId: process.env.GITHUB_RUN_ID,
+            dataHash: process.env.DATA_HASH,
+          };
+          fs.writeFileSync('reports/run-meta.json', JSON.stringify(meta, null, 2) + '\n', 'utf8');
+          NODE
+
+      - name: Commit and push if changed
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reports/winners.json reports/run-meta.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "chore(data): refresh winners and run meta"
+          git push
