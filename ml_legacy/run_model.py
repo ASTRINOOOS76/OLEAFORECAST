@@ -2,17 +2,52 @@
 import argparse
 import json
 import os
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+import math
+import re
+import sys
+from datetime import datetime, timezone, date
+from typing import List, Dict, Any, Tuple, Optional
+
+import numpy as np
+
+# Optional deps (only used when those engines are selected)
+# statsmodels needed for ETS scripts
+# xgboost + sklearn needed for unpickling XGBRegressor artifacts
+
+Z = 1.281551565545  # ~p10/p90 z-score (Normal)
+
+# Allow `from ml_legacy import ...` when executed as a script.
+_ROOT = os.path.dirname(os.path.dirname(__file__))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
 
 def iso_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def horizon_to_weeks(h: str) -> int:
+    h = h.upper().strip()
+    if h.startswith("W"):
+        return int(h[1:])
+    raise ValueError(f"Unsupported horizon format: {h} (expected W4/W13/W26/W52)")
+
+
+def parse_yyyy_mm_dd(s: str) -> Optional[date]:
+    # expects YYYY-MM-DD
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", s):
+        return None
+    y, m, d = s.split("-")
+    return date(int(y), int(m), int(d))
+
+
+def is_relative_date(s: str) -> bool:
+    return bool(re.match(r"^t\+\d+$", s.strip()))
+
+
 def read_actuals_csv(path: str) -> List[Dict[str, Any]]:
     # expects header: date,value
-    out: List[Dict[str, Any]] = []
+    out = []
     with open(path, "r", encoding="utf-8") as f:
         lines = [ln.strip() for ln in f.readlines() if ln.strip()]
     if len(lines) < 2:
@@ -30,96 +65,269 @@ def read_actuals_csv(path: str) -> List[Dict[str, Any]]:
         except Exception:
             continue
         out.append({"date": d, "value": val})
+    # sort by date string (YYYY-MM-DD) safe lexicographically
+    out.sort(key=lambda x: x["date"])
     return out
 
 
-def naive_last_value_forecast(
-    actuals: List[Dict[str, Any]],
-    horizon_days: int = 28,
-) -> List[Dict[str, Any]]:
+def build_feature_dict_from_actuals(actuals: List[Dict[str, Any]]) -> Dict[str, float]:
     """
-    Baseline: p50=last actual, band expands with time.
-    Output dates: same cadence as actuals (if weekly) OR daily (if dense).
-    For now: create 4 weekly points (W4) starting from last date + 7d steps.
+    Build a feature dict compatible with predict_xgb.FEATURE_NAMES.
+    Assumes actuals are weekly-ish. If missing, fallbacks to 0.
     """
     if not actuals:
-        return []
+        return {"baseValue": 4000.0}
 
-    # take last value
-    last = actuals[-1]
-    last_value = float(last["value"])
-    last_date = last["date"]
+    values = [float(a["value"]) for a in actuals]
+    last = values[-1]
+    feats: Dict[str, float] = {"baseValue": float(last)}
 
-    def parse_date(value: str) -> datetime | None:
-        try:
-            return datetime.fromisoformat(value)
-        except ValueError:
-            try:
-                return datetime.strptime(value, "%Y-%m-%d")
-            except ValueError:
-                return None
+    def lag(k: int) -> Optional[float]:
+        idx = len(values) - 1 - k
+        if idx < 0:
+            return None
+        return float(values[idx])
 
-    last_dt = parse_date(last_date)
+    # lags
+    for k in [1, 2, 4, 8, 12, 26, 52]:
+        v = lag(k)
+        feats[f"lag_{k}w"] = float(v) if v is not None else 0.0
 
-    # produce 4 weekly dates (W4)
-    # In production, TS will pass explicit target dates to python.
-    series: List[Dict[str, Any]] = []
-    for k in range(4):
-        if last_dt:
-            date_out = (last_dt + timedelta(days=7 * (k + 1))).date().isoformat()
-        else:
-            date_out = f"{last_date}_p{k + 1}"
-        sigma = 120 + 40 * (k ** 0.5)  # EUR/ton-ish scale; ok after normalization upstream
-        p50 = last_value
-        p10 = p50 - 1.28155 * sigma
-        p90 = p50 + 1.28155 * sigma
-        series.append({"date": date_out, "p10": p10, "p50": p50, "p90": p90})
-    return series
+    def rolling_mean(w: int) -> float:
+        if len(values) < w:
+            return float(np.mean(values)) if values else 0.0
+        return float(np.mean(values[-w:]))
+
+    def rolling_std(w: int) -> float:
+        if len(values) < w:
+            return float(np.std(values)) if values else 0.0
+        return float(np.std(values[-w:]))
+
+    for w in [4, 8, 13, 26]:
+        feats[f"rolling_mean_{w}w"] = rolling_mean(w)
+        feats[f"rolling_std_{w}w"] = rolling_std(w)
+        m = feats[f"rolling_mean_{w}w"]
+        s = feats[f"rolling_std_{w}w"]
+        feats[f"rolling_vol_{w}w"] = float(s / m) if m and m != 0 else 0.0
+
+    # returns
+    def ret(k: int) -> float:
+        v0 = last
+        vk = lag(k)
+        if vk is None or vk == 0:
+            return 0.0
+        return float((v0 / vk) - 1.0)
+
+    feats["ret_1w"] = ret(1)
+    feats["ret_4w"] = ret(4)
+    feats["ret_13w"] = ret(13)
+    feats["ret_26w"] = ret(26)
+
+    # seasonality + crop year
+    d = parse_yyyy_mm_dd(actuals[-1]["date"])
+    if d is None:
+        d = date.today()
+    week = int(d.isocalendar()[1])
+    month = d.month
+
+    feats["week_sin"] = float(math.sin(2 * math.pi * week / 52.0))
+    feats["week_cos"] = float(math.cos(2 * math.pi * week / 52.0))
+    feats["month_sin"] = float(math.sin(2 * math.pi * month / 12.0))
+    feats["month_cos"] = float(math.cos(2 * math.pi * month / 12.0))
+
+    # crop year assumed start Oct 1
+    crop_start = date(d.year if d.month >= 10 else d.year - 1, 10, 1)
+    delta_days = (d - crop_start).days
+    feats["crop_year_progress"] = float(max(0.0, min(1.0, delta_days / 365.0)))
+
+    # harvest season rough: Oct-Feb
+    feats["is_harvest_season"] = 1.0 if month in [10, 11, 12, 1, 2] else 0.0
+
+    return feats
 
 
-def main() -> None:
+def s3_download_artifact(series_key: str, horizon_weeks: int, dst_dir: str) -> Tuple[str, str]:
+    """
+    Download {series_key}_h{horizon}w.pkl and meta.json from S3-compatible storage.
+    Required env vars:
+      S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+    Optional:
+      AWS_REGION (default: us-east-1), S3_ENDPOINT, S3_PREFIX (default: ml/artifacts)
+    """
+    import boto3
+    from botocore.config import Config
+
+    bucket = os.environ.get("S3_BUCKET")
+    if not bucket:
+        raise RuntimeError("Missing env S3_BUCKET")
+
+    prefix = os.environ.get("S3_PREFIX", "ml/artifacts").strip("/")
+
+    endpoint = os.environ.get("S3_ENDPOINT")  # for Wasabi/B2/etc
+    region = os.environ.get("AWS_REGION", "us-east-1")
+
+    session = boto3.session.Session()
+    s3 = session.client(
+        "s3",
+        region_name=region,
+        endpoint_url=endpoint,
+        config=Config(signature_version="s3v4"),
+    )
+
+    os.makedirs(dst_dir, exist_ok=True)
+
+    base = f"{series_key}_h{horizon_weeks}w"
+    key_pkl = f"{prefix}/{base}.pkl"
+    key_meta = f"{prefix}/{base}_meta.json"
+
+    pkl_path = os.path.join(dst_dir, f"{base}.pkl")
+    meta_path = os.path.join(dst_dir, f"{base}_meta.json")
+
+    s3.download_file(bucket, key_pkl, pkl_path)
+    s3.download_file(bucket, key_meta, meta_path)
+
+    return pkl_path, meta_path
+
+
+def xgb_artifact_forecast(series_key: str, horizon_weeks: int, features: Dict[str, float]) -> Dict[str, Any]:
+    """
+    Uses Olive-Oracle/ml/predict_xgb.py logic (load pickled XGB models).
+    We do not vendor artifacts in repo; we download from S3 to /tmp and point predict_xgb.ARTIFACTS_DIR there.
+    """
+    # Load local predict_xgb module we will vendor into ml_legacy.
+    from ml_legacy import predict_xgb
+
+    # download artifacts
+    cache_dir = os.path.join("/tmp", "oleaforecast_artifacts")
+    pkl_path, meta_path = s3_download_artifact(series_key, horizon_weeks, cache_dir)
+
+    # point module to cache dir
+    predict_xgb.ARTIFACTS_DIR = cache_dir
+
+    # predict_xgb predicts ALL horizons; we select the one requested
+    out = predict_xgb.predict_all_horizons(series_key, features)
+    preds = out.get("predictions", [])
+
+    # find matching horizon
+    row = next((p for p in preds if int(p.get("horizon", -1)) == int(horizon_weeks)), None)
+    if not row:
+        raise RuntimeError(f"No prediction for horizon {horizon_weeks} in predict_xgb output")
+
+    p50 = float(row.get("predictedPrice", features.get("baseValue", 0.0)))
+
+    # read meta rmse (log return rmse) to convert to price band
+    with open(meta_path, "r", encoding="utf-8") as f:
+        meta = json.load(f)
+    rmse = float(meta.get("metrics", {}).get("rmse", 0.03))  # log-return RMSE
+    # scale uncertainty with horizon (normalize to 4w baseline)
+    sigma = rmse * math.sqrt(max(1.0, horizon_weeks / 4.0))
+    p10 = p50 * math.exp(-Z * sigma)
+    p90 = p50 * math.exp(+Z * sigma)
+
+    return {"p10": p10, "p50": p50, "p90": p90, "meta": {"rmse": rmse, "sigma": sigma}}
+
+
+def ets_forecast(prices: List[float], horizon_weeks: int, mode: str) -> List[Dict[str, Any]]:
+    """
+    mode:
+      - "prophet" -> actually Olive-Oracle/ml/prophet_forecast.py (simple ETS)
+      - "ets" -> Olive-Oracle/ml/regime_aware_ets.py (regime-aware)
+    Returns list of {horizon, p10,p50,p90}
+    """
+    if mode == "prophet":
+        from ml_legacy import prophet_forecast as pf
+        res = pf.forecast_ets(prices, horizon_weeks)
+        if "error" in res:
+            raise RuntimeError(res["error"])
+        return res["predictions"]
+    if mode == "ets":
+        from ml_legacy import regime_aware_ets as rae
+        res = rae.forecast_regime_aware_ets(prices, horizon_weeks)
+        if "error" in res:
+            raise RuntimeError(res["error"])
+        return res["predictions"]
+    raise ValueError(f"Unknown ETS mode: {mode}")
+
+
+def make_target_dates(actuals: List[Dict[str, Any]], horizon_weeks: int) -> List[str]:
+    """
+    Generates weekly target dates starting 7 days after last actual date.
+    """
+    last_date = actuals[-1]["date"]
+    if is_relative_date(last_date):
+        return [f"t+{k}" for k in range(1, horizon_weeks + 1)]
+
+    last_d = parse_yyyy_mm_dd(last_date)
+    if last_d is None:
+        last_d = date.today()
+    out = []
+    for k in range(1, horizon_weeks + 1):
+        # weekly steps: one point per week
+        dd = last_d.toordinal() + 7 * k
+        out.append(date.fromordinal(dd).isoformat())
+    return out
+
+
+def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--market", required=True)
-    ap.add_argument("--horizon", required=True)
+    ap.add_argument("--horizon", required=True)  # W4/W13/W26/W52
     ap.add_argument("--model-id", required=True)
-    ap.add_argument("--actuals", required=True, help="Path to actuals.csv (date,value)")
-    ap.add_argument("--out", required=True, help="Output JSON path")
-    ap.add_argument(
-        "--engine",
-        required=False,
-        default="naive",
-        choices=["naive", "xgb", "prophet", "ets"],
-    )
+    ap.add_argument("--actuals", required=True)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--engine", required=True, choices=["naive", "xgb", "prophet", "ets"])
+    ap.add_argument("--grade", required=False, default="EVOO")  # EVOO/VOO/LAMPANTE...
+    ap.add_argument("--series-key", required=False, default="")  # override
     args = ap.parse_args()
 
     market = args.market.strip()
-    horizon = args.horizon.strip()
+    horizon = args.horizon.strip().upper()
     model_id = args.model_id.strip()
-    actuals_path = args.actuals
-    out_path = args.out
+    engine = args.engine.strip()
+    grade = args.grade.strip().upper()
+    series_key = args.series_key.strip() or f"{grade}_{market}"
 
-    if not os.path.exists(actuals_path):
-        raise FileNotFoundError(f"actuals not found: {actuals_path}")
+    actuals = read_actuals_csv(args.actuals)
+    if not actuals:
+        raise RuntimeError("No actuals rows")
 
-    actuals = read_actuals_csv(actuals_path)
+    horizon_weeks = horizon_to_weeks(horizon)
+    target_dates = make_target_dates(actuals, horizon_weeks)
 
-    if args.engine == "naive":
-        series = naive_last_value_forecast(actuals)
-    else:
-        # v1: keep it simple; wire legacy modules in next commit
-        # You will replace this block to call predict_xgb/prophet_forecast/regime_aware_ets
-        series = naive_last_value_forecast(actuals)
+    payload_series: List[Dict[str, Any]] = []
+
+    if engine == "naive":
+        last = float(actuals[-1]["value"])
+        # simple widening band
+        for i, d in enumerate(target_dates):
+            w = (0.02 * last) * math.sqrt(i + 1)
+            payload_series.append({"date": d, "p10": last - Z * w, "p50": last, "p90": last + Z * w})
+
+    elif engine == "xgb":
+        feats = build_feature_dict_from_actuals(actuals)
+        # XGB artifact gives ONE horizon point; we spread flat across horizon dates
+        one = xgb_artifact_forecast(series_key, horizon_weeks, feats)
+        for d in target_dates:
+            payload_series.append({"date": d, "p10": one["p10"], "p50": one["p50"], "p90": one["p90"]})
+
+    elif engine in ["prophet", "ets"]:
+        prices = [float(a["value"]) for a in actuals]
+        preds = ets_forecast(prices, horizon_weeks, mode=engine)
+        # preds are 1..horizon weekly points
+        for i, d in enumerate(target_dates):
+            p = preds[i]
+            payload_series.append({"date": d, "p10": float(p["p10"]), "p50": float(p["p50"]), "p90": float(p["p90"])} )
 
     payload = {
         "modelId": model_id,
         "market": market,
         "horizon": horizon,
         "generatedAt": iso_now(),
-        "series": series,
+        "series": payload_series,
     }
 
-    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
+    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
+    with open(args.out, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
         f.write("\n")
 

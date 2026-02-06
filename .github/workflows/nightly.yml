@@ -1,0 +1,55 @@
+name: nightly
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 6 * * *"  # daily 06:15 UTC
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Node deps
+        run: npm ci
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ml_legacy/requirements.txt
+
+      - name: Canonical actuals
+        run: npm run -s ingest:canonical -- --markets ES,IT,GR,TN,PT,TR --horizon W4
+
+      - name: Forecasts (python engines)
+        env:
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          S3_PREFIX: ${{ secrets.S3_PREFIX }}
+          S3_ENDPOINT: ${{ secrets.S3_ENDPOINT }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          npm run -s forecast:run -- --markets ES,IT,GR,TN,PT,TR --horizon W4 --modelId E0 --engine xgb --grade EVOO
+          npm run -s forecast:run -- --markets ES,IT,GR,TN,PT,TR --horizon W4 --modelId E1 --engine prophet --grade EVOO
+          npm run -s forecast:run -- --markets ES,IT,GR,TN,PT,TR --horizon W4 --modelId E2 --engine ets --grade EVOO
+
+      - name: Reports
+        run: npm run -s eval:batch -- data
+
+      - name: Upload reports artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: oleaforecast-nightly-reports
+          path: reports/**
+          retention-days: 14

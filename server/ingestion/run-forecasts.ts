@@ -35,6 +35,7 @@ async function main() {
   const horizon = (args.horizon || "W4").trim();
   const engine = (args.engine || "naive").trim(); // naive|xgb|prophet|ets
   const modelId = (args.modelId || "E0").trim();
+  const grade = (args.grade || "EVOO").trim();
   const python = (args.python || "python3").trim();
 
   for (const m of markets) {
@@ -56,6 +57,8 @@ async function main() {
       modelId,
       "--engine",
       engine,
+      "--grade",
+      grade,
       "--actuals",
       actualsPath,
       "--out",
@@ -64,7 +67,7 @@ async function main() {
   }
 
   console.log(
-    `[forecasts] done modelId=${modelId} engine=${engine} horizon=${horizon} markets=${markets.join(",")}`
+    `[forecasts] done modelId=${modelId} engine=${engine} horizon=${horizon} grade=${grade} markets=${markets.join(",")}`
   );
 }
 
