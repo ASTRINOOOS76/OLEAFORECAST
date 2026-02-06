@@ -17,10 +17,17 @@ DIST_HISTORY_DIR = ROOT / "dist" / "history"
 
 @st.cache_data(show_spinner=False)
 def load_latest_winners() -> dict[str, Any]:
-    winners_path = REPORTS_DIR / "winners.json"
-    if not winners_path.exists():
-        raise FileNotFoundError("reports/winners.json not found")
-    return json.loads(winners_path.read_text(encoding="utf-8"))
+    candidates = [
+        (REPORTS_DIR / "winners.json", "reports/winners.json"),
+        (FIXTURES_DIR / "winners.json", "data/_fixtures/winners.json"),
+    ]
+    for path, label in candidates:
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
+    raise FileNotFoundError(
+        "winners.json not found. Expected reports/winners.json (commit it) "
+        "or data/_fixtures/winners.json"
+    )
 
 
 @st.cache_data(show_spinner=False)
@@ -100,10 +107,14 @@ def main() -> None:
         run_options += history_index.get("runs", [])
 
     run_key = st.selectbox("Run", options=run_options, index=0)
-    if run_key == "latest":
-        data = load_latest_winners()
-    else:
-        data = load_history_run(run_key)
+    try:
+        if run_key == "latest":
+            data = load_latest_winners()
+        else:
+            data = load_history_run(run_key)
+    except Exception as exc:
+        st.error(f"Failed to load winners data: {exc}")
+        st.stop()
 
     results = data.get("results", [])
     st.caption(f"generatedAt: {data.get('generatedAt', 'n/a')} · rows: {len(results)}")

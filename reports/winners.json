@@ -1,0 +1,107 @@
+{
+  "generatedAt": "2026-02-06T12:50:03.890Z",
+  "results": [
+    {
+      "market": "ES",
+      "horizon": "W4",
+      "winnerModelId": "E0",
+      "top3": [
+        "E0"
+      ],
+      "ineligible": [
+        {
+          "modelId": "E2",
+          "reasons": [
+            "MASE 10.00 > 1.5"
+          ]
+        }
+      ],
+      "actualsQuality": {
+        "count": 4,
+        "duplicates": [],
+        "nonFinite": 0,
+        "isSorted": true
+      }
+    },
+    {
+      "market": "GR",
+      "horizon": "W4",
+      "winnerModelId": "E0",
+      "top3": [
+        "E0",
+        "E2"
+      ],
+      "ineligible": [],
+      "actualsQuality": {
+        "count": 2,
+        "duplicates": [],
+        "nonFinite": 0,
+        "isSorted": true
+      }
+    },
+    {
+      "market": "IT",
+      "horizon": "W4",
+      "winnerModelId": "E0",
+      "top3": [
+        "E0",
+        "E2"
+      ],
+      "ineligible": [],
+      "actualsQuality": {
+        "count": 2,
+        "duplicates": [],
+        "nonFinite": 0,
+        "isSorted": true
+      }
+    },
+    {
+      "market": "PT",
+      "horizon": "W4",
+      "winnerModelId": "E0",
+      "top3": [
+        "E0",
+        "E2"
+      ],
+      "ineligible": [],
+      "actualsQuality": {
+        "count": 2,
+        "duplicates": [],
+        "nonFinite": 0,
+        "isSorted": true
+      }
+    },
+    {
+      "market": "TN",
+      "horizon": "W4",
+      "winnerModelId": "E0",
+      "top3": [
+        "E0",
+        "E2"
+      ],
+      "ineligible": [],
+      "actualsQuality": {
+        "count": 2,
+        "duplicates": [],
+        "nonFinite": 0,
+        "isSorted": true
+      }
+    },
+    {
+      "market": "TR",
+      "horizon": "W4",
+      "winnerModelId": "E0",
+      "top3": [
+        "E0",
+        "E2"
+      ],
+      "ineligible": [],
+      "actualsQuality": {
+        "count": 2,
+        "duplicates": [],
+        "nonFinite": 0,
+        "isSorted": true
+      }
+    }
+  ]
+}
