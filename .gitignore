@@ -50,3 +50,6 @@ replit.nix
 .upm/
 .local/
 .cache/
+
+# temp
+.tmp_test/
