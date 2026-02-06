@@ -55,25 +55,22 @@ jobs:
           cp -r site/* dist/
           cp reports/winners.json dist/winners.json
 
+          # ZERO history each deploy (avoid broken legacy snapshots)
+          rm -rf dist/history
+          mkdir -p dist/history
+
           # history snapshot key
           TS=$(node -e "const j=require('./reports/winners.json'); process.stdout.write((j.generatedAt||new Date().toISOString()).replace(/[:.]/g,'-'))")
           mkdir -p dist/history/$TS
           cp reports/winners.json dist/history/$TS/winners.json
 
-          # create/refresh index.json
+          # index.json (only current run)
           node - <<'NODE'
           const fs=require('fs');
           const path=require('path');
-
-          function listDirs(p){
-            if(!fs.existsSync(p)) return [];
-            return fs.readdirSync(p,{withFileTypes:true}).filter(d=>d.isDirectory()).map(d=>d.name).sort().reverse();
-          }
-
-          const histDir='dist/history';
-          const runs=listDirs(histDir).slice(0, 20); // keep latest 20
+          const runs=fs.readdirSync('dist/history',{withFileTypes:true}).filter(d=>d.isDirectory()).map(d=>d.name).sort().reverse();
           const index={ updatedAt: new Date().toISOString(), runs };
-          fs.writeFileSync(path.join(histDir,'index.json'), JSON.stringify(index,null,2)+'\n','utf8');
+          fs.writeFileSync(path.join('dist/history','index.json'), JSON.stringify(index,null,2)+'\n','utf8');
           NODE
 
       - name: Upload Pages artifact
