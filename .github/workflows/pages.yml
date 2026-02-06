@@ -55,6 +55,16 @@ jobs:
           cp -r site/* dist/
           cp reports/winners.json dist/winners.json
 
+          # bundle minimal data for UI drilldown
+          mkdir -p dist/bundle
+          cp -r data/_fixtures dist/bundle/_fixtures
+          cp -r data/ES dist/bundle/ES || true
+          cp -r data/IT dist/bundle/IT || true
+          cp -r data/GR dist/bundle/GR || true
+          cp -r data/TN dist/bundle/TN || true
+          cp -r data/PT dist/bundle/PT || true
+          cp -r data/TR dist/bundle/TR || true
+
           # ZERO history each deploy (avoid broken legacy snapshots)
           rm -rf dist/history
           mkdir -p dist/history
