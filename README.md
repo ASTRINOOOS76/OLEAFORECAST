@@ -19,6 +19,10 @@ OleaForecast is a production-minded forecasting application that:
 - Install dependencies
 - Run dev server
 
+## Streamlit UI (local)
+- Install: `pip install -r requirements.txt`
+- Run: `streamlit run streamlit_app.py`
+
 ## Structure (high level)
 - `server/` backend (gates, scoring, APIs)
 - `ml/`     forecasting engines / utilities
