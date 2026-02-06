@@ -24,8 +24,8 @@
     "forecast:run": "tsx server/ingestion/run-forecasts.ts",
     "py:deps": "python3 -m pip install -r ml_legacy/requirements.txt",
     "build": "node -e \"console.log('build: ok (placeholder)')\"",
-    "start": "node -e \"console.log('start: pending')\"",
-    "dev": "node -e \"console.log('dev: pending')\""
+    "start": "tsx server/app.ts",
+    "dev": "tsx server/app.ts"
   },
   "dependencies": {
     "cheerio": "^1.2.0"
