@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>OleaForecast | Olive Oil Intelligence</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Space+Grotesk:wght@400;500;600&display=swap");
+
+    :root {
+      --bg: #f4efe6;
+      --ink: #1f1b16;
+      --muted: #6b6054;
+      --accent: #2f6b4f;
+      --accent-2: #c86b3c;
+      --card: #fffaf2;
+      --line: #eadfce;
+      --shadow: 0 14px 40px rgba(31, 27, 22, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: radial-gradient(1200px 600px at 10% -10%, #f7e9d6, transparent),
+                  radial-gradient(900px 500px at 90% 10%, #e3efe6, transparent),
+                  var(--bg);
+      min-height: 100vh;
+    }
+
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 24px 80px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 24px; }
+    .brand { display: flex; gap: 14px; align-items: center; }
+    .logo {
+      width: 44px; height: 44px; border-radius: 14px;
+      background: linear-gradient(135deg, #2f6b4f, #9bc48f);
+      box-shadow: inset 0 0 0 2px rgba(255,255,255,0.5);
+    }
+    .brand h1 { font-family: "Fraunces", serif; font-size: 22px; margin: 0; letter-spacing: 0.4px; }
+    .brand p { margin: 0; color: var(--muted); font-size: 12px; }
+    .link { color: var(--ink); text-decoration: none; border-bottom: 1px solid rgba(0,0,0,0.2); }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.3fr 0.7fr;
+      gap: 24px;
+      align-items: stretch;
+      margin: 20px 0 26px;
+    }
+    .hero-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+      animation: rise 600ms ease both;
+    }
+    .hero-card::after {
+      content: "";
+      position: absolute;
+      right: -40px; top: -40px;
+      width: 140px; height: 140px; border-radius: 40px;
+      background: linear-gradient(135deg, rgba(200,107,60,0.2), rgba(47,107,79,0.2));
+      transform: rotate(18deg);
+    }
+    .hero h2 {
+      font-family: "Fraunces", serif;
+      font-size: 34px;
+      line-height: 1.1;
+      margin: 0 0 12px;
+    }
+    .hero p { margin: 0 0 14px; color: var(--muted); }
+    .hero .pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: #e8f2ea; color: #1e3f2f;
+      padding: 6px 12px; border-radius: 999px; font-size: 12px;
+    }
+    .hero-metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .hero-metrics span {
+      background: #f4e8d8;
+      border: 1px solid #e6d4bf;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: #4a3b2f;
+    }
+
+    .status-stack { display: grid; gap: 12px; }
+    .status-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+    }
+    .status-title { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px; }
+    .status { margin-top: 8px; padding: 12px; border-radius: 12px; font-size: 13px; }
+    .ok { background: #eef7f1; border: 1px solid #b5e0c5; }
+    .err { background: #fff0ef; border: 1px solid #f0b9b2; }
+
+    .controls {
+      display: grid; grid-template-columns: 1.2fr 1fr 1fr 0.8fr;
+      gap: 12px; align-items: end; margin: 16px 0 20px;
+    }
+    label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 6px; }
+    select, input, button {
+      width: 100%; padding: 10px 12px; border-radius: 12px;
+      border: 1px solid var(--line); background: white; font-size: 14px;
+    }
+    button { cursor: pointer; background: var(--accent); color: white; border: none; }
+    .meta { font-size: 12px; color: var(--muted); }
+
+    .grid {
+      display: grid; grid-template-columns: 1.4fr 0.6fr; gap: 20px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+      animation: rise 700ms ease both;
+    }
+
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border-bottom: 1px solid #eee1cf; padding: 10px; vertical-align: top; }
+    th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.8px; }
+    tr:hover { background: #fff4e6; }
+    .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; background:#f0e5d6; margin-right: 6px; font-size: 12px; }
+
+    .rail h3 { margin: 0 0 8px; font-size: 14px; }
+    .rail ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+    .rail li { padding: 10px; border-radius: 12px; background: #fff4e6; border: 1px dashed #e7c9a9; font-size: 13px; }
+    .rail small { color: var(--muted); display: block; margin-top: 4px; }
+
+    .panel {
+      position: fixed; inset: 24px; display: none; background: rgba(31,27,22,0.12);
+      backdrop-filter: blur(6px); border-radius: 24px; padding: 14px;
+    }
+    .panel-inner {
+      background: white; border-radius: 18px; border: 1px solid var(--line);
+      padding: 16px; height: 100%; overflow: auto;
+    }
+    .panel h2 { margin: 6px 0 10px; }
+    .panel .actions { display:flex; gap:8px; align-items:center; margin-bottom:10px; }
+    .kv { display:grid; grid-template-columns: 120px 1fr; gap:6px 10px; margin: 10px 0 14px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .box { border: 1px solid #eee; border-radius: 12px; padding: 10px; background: #fffaf2; }
+    .box h3 { margin: 0 0 8px; font-size: 14px; }
+    .hint { color:#666; font-size: 12px; }
+    .tbl2 { width:100%; border-collapse:collapse; }
+    .tbl2 th,.tbl2 td { border: 1px solid #eee; padding: 6px; font-size: 12px; }
+    .tbl2 th { background:#fafafa; }
+
+    @keyframes rise {
+      from { transform: translateY(10px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    @media (max-width: 980px) {
+      .hero { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <div>
+        <h1>OleaForecast</h1>
+        <p>Olive Oil Intelligence / Ευφυία Ελαιολάδου</p>
+      </div>
+    </div>
+    <a class="link" href="https://www.sales-tree.com" target="_blank" rel="noopener">Powered by Sales-Tree</a>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <div class="hero-card">
+        <span class="pill">Risk radar • Ραντάρ κινδύνων</span>
+        <h2>Tool for detection, updates, and decisions in the olive oil world.</h2>
+        <p>Εργαλείο πρόβλεψης, ενημέρωσης και απόφασης στον κόσμο του ελαιολάδου.</p>
+        <p>Track markets, validate data quality, detect anomalies, and turn forecasts into actions for producers, traders, and cooperatives.</p>
+        <div class="hero-metrics">
+          <span>Forecast watch / Παρακολούθηση πρόβλεψης</span>
+          <span>Quality gates / Πύλες ποιότητας</span>
+          <span>Alerts / Ειδοποιήσεις</span>
+        </div>
+      </div>
+      <div class="status-stack">
+        <div class="status-card">
+          <div class="status-title">Live status / Κατάσταση</div>
+          <div id="status" class="status ok">Loading…</div>
+        </div>
+        <div class="status-card">
+          <div class="status-title">Updates / Ενημερώσεις</div>
+          <div class="meta">New observations, model runs, and alerts appear here as they land.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="controls card">
+      <div>
+        <label>Run / Έκδοση</label>
+        <select id="runSel">
+          <option value="">latest</option>
+        </select>
+      </div>
+      <div>
+        <label>Market / Αγορά</label>
+        <select id="marketFilter">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div>
+        <label>Search / Αναζήτηση</label>
+        <input id="search" placeholder="ES / IT / W4 / modelId" />
+      </div>
+      <div>
+        <label>Meta</label>
+        <div class="meta" id="meta"></div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <h3>Forecast winners / Νικητές προβλέψεων</h3>
+        <table id="tbl">
+          <thead>
+            <tr>
+              <th>Market</th>
+              <th>Horizon</th>
+              <th>Winner</th>
+              <th>Top-3</th>
+              <th>Ineligible</th>
+              <th>Actuals N</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <aside class="card rail">
+        <h3>Decision signals / Σήματα αποφάσεων</h3>
+        <ul>
+          <li>Alerts: price spikes, tender gaps, weekly volatility.
+            <small>Alerts are triggered when market thresholds are exceeded.</small>
+          </li>
+          <li>Data quality: coverage, freshness, and source conflicts.
+            <small>Spot missing markets or stale observations fast.</small>
+          </li>
+          <li>Evaluation: compare model winners by horizon.
+            <small>Track performance by market and product.</small>
+          </li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="card" style="margin-top:20px;">
+      <h3>Ineligible details / Μη έγκυρα</h3>
+      <div id="ineligible"></div>
+    </section>
+  </main>
+
+  <div class="panel" id="panel">
+    <div class="panel-inner">
+      <div class="actions">
+        <button id="closeBtn">Close</button>
+        <span class="hint" id="panelHint"></span>
+      </div>
+      <h2 id="panelTitle">Drilldown</h2>
+      <div class="kv mono" id="panelMeta"></div>
+
+      <div class="grid2">
+        <div class="box">
+          <h3>Actuals (tail)</h3>
+          <div class="hint">From <code>bundle/&lt;MARKET&gt;/&lt;H&gt;/actuals.csv</code> or fallback <code>bundle/_fixtures</code></div>
+          <table class="tbl2" id="actTbl">
+            <thead><tr><th>date</th><th>value</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="box">
+          <h3>Winner forecast (series)</h3>
+          <div class="hint">From <code>bundle/&lt;MARKET&gt;/&lt;H&gt;/&lt;MODEL&gt;.json</code> or fallback <code>bundle/_fixtures</code></div>
+          <table class="tbl2" id="fcTbl">
+            <thead><tr><th>date</th><th>p10</th><th>p50</th><th>p90</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="box" style="margin-top:12px;">
+        <h3>Overlap check</h3>
+        <div id="overlap" class="mono"></div>
+      </div>
+
+      <div class="box" style="margin-top:12px;">
+        <h3>Chart</h3>
+        <div class="hint">Actuals line + forecast p10/p50/p90 band (dates on x-axis).</div>
+        <canvas id="chart" width="520" height="260" style="width:100%; height:auto; border:1px solid #eee; border-radius:10px;"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      }[c]));
+    }
+
+    function setStatus(ok, msg) {
+      const el = $("status");
+      el.className = (ok ? "ok" : "err") + " status";
+      el.textContent = msg;
+    }
+
+    function uniq(arr) { return Array.from(new Set(arr)); }
+
+    async function fetchJson(url) {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+      return await res.json();
+    }
+
+    async function fetchText(url) {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+      return await res.text();
+    }
+
+    function parseActualsCsv(text) {
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if (lines.length < 2) return [];
+      const hdr = lines[0].toLowerCase();
+      if (hdr !== "date,value") throw new Error(`Bad actuals header: ${lines[0]}`);
+      const out = [];
+      for (let i=1;i<lines.length;i++){
+        const [date, v] = lines[i].split(",").map(x=>x.trim());
+        const value = Number(v);
+        if (!date || !Number.isFinite(value)) continue;
+        out.push({ date, value });
+      }
+      return out;
+    }
+
+    async function tryLoadActuals(market, horizon) {
+      const paths = [
+        `./bundle/${market}/${horizon}/actuals.csv`,
+        `./bundle/_fixtures/${market}/${horizon}/actuals.csv`
+      ];
+      for (const p of paths) {
+        try {
+          const txt = await fetchText(p);
+          return { path: p, rows: parseActualsCsv(txt) };
+        } catch (_) {}
+      }
+      throw new Error(`actuals not found for ${market}/${horizon}`);
+    }
+
+    async function tryLoadForecast(market, horizon, modelId) {
+      const paths = [
+        `./bundle/${market}/${horizon}/${modelId}.json`,
+        `./bundle/_fixtures/${market}/${horizon}/${modelId}.json`
+      ];
+      for (const p of paths) {
+        try {
+          const j = await fetchJson(p);
+          return { path: p, json: j };
+        } catch (_) {}
+      }
+      throw new Error(`forecast not found for ${market}/${horizon}/${modelId}`);
+    }
+
+    function tail(arr, n) { return arr.slice(Math.max(0, arr.length - n)); }
+
+    function drawChart(canvas, actuals, series) {
+      const ctx = canvas.getContext("2d");
+      const W = canvas.width, H = canvas.height;
+      ctx.clearRect(0,0,W,H);
+
+      const dates = Array.from(new Set([
+        ...actuals.map(a=>a.date),
+        ...series.map(s=>s.date)
+      ])).sort();
+
+      if (dates.length < 2) {
+        ctx.fillText("Not enough data to plot", 10, 20);
+        return;
+      }
+
+      const xOf = (d) => dates.indexOf(d);
+      const padL=40, padR=12, padT=14, padB=26;
+      const innerW = W - padL - padR;
+      const innerH = H - padT - padB;
+
+      const ys = [];
+      for (const a of actuals) ys.push(a.value);
+      for (const s of series) { ys.push(s.p10, s.p50, s.p90); }
+
+      const yMin = Math.min(...ys.filter(Number.isFinite));
+      const yMax = Math.max(...ys.filter(Number.isFinite));
+      const span = (yMax - yMin) || 1;
+
+      const x = (d) => padL + (xOf(d) / (dates.length - 1)) * innerW;
+      const y = (v) => padT + (1 - ((v - yMin) / span)) * innerH;
+
+      ctx.strokeStyle = "#ddd";
+      ctx.beginPath();
+      ctx.moveTo(padL, padT);
+      ctx.lineTo(padL, padT + innerH);
+      ctx.lineTo(padL + innerW, padT + innerH);
+      ctx.stroke();
+
+      ctx.fillStyle = "#666";
+      ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+      ctx.fillText(String(Math.round(yMax)), 4, padT + 10);
+      ctx.fillText(String(Math.round(yMin)), 4, padT + innerH);
+
+      const byDate = new Map(series.map(s=>[s.date, s]));
+      const bandDates = dates.filter(d => byDate.has(d));
+
+      if (bandDates.length >= 2) {
+        ctx.fillStyle = "rgba(0,0,0,0.06)";
+        ctx.beginPath();
+        for (let i=0;i<bandDates.length;i++){
+          const d = bandDates[i];
+          const s = byDate.get(d);
+          ctx.lineTo(x(d), y(s.p90));
+        }
+        for (let i=bandDates.length-1;i>=0;i--){
+          const d = bandDates[i];
+          const s = byDate.get(d);
+          ctx.lineTo(x(d), y(s.p10));
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = "#111";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i=0;i<bandDates.length;i++){
+          const d = bandDates[i];
+          const s = byDate.get(d);
+          const xx = x(d), yy = y(s.p50);
+          if (i===0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+        }
+        ctx.stroke();
+        ctx.lineWidth = 1;
+      }
+
+      const aByDate = new Map(actuals.map(a=>[a.date, a.value]));
+      const aDates = dates.filter(d => aByDate.has(d));
+      if (aDates.length >= 2) {
+        ctx.strokeStyle = "#555";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i=0;i<aDates.length;i++){
+          const d = aDates[i];
+          const v = aByDate.get(d);
+          const xx = x(d), yy = y(v);
+          if (i===0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+        }
+        ctx.stroke();
+        ctx.lineWidth = 1;
+      }
+
+      ctx.fillStyle = "#666";
+      ctx.font = "11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+      ctx.fillText(dates[0], padL, H - 8);
+      const last = dates[dates.length-1];
+      const tw = ctx.measureText(last).width;
+      ctx.fillText(last, padL + innerW - tw, H - 8);
+    }
+
+    function renderDrilldown(market, horizon, modelId, actuals, forecast, paths) {
+      $("panelTitle").textContent = `${market} / ${horizon} — winner: ${modelId}`;
+      $("panelHint").textContent = `actuals: ${paths.actuals} • forecast: ${paths.forecast}`;
+      $("panelMeta").innerHTML = `
+        <div>generatedAt</div><div>${esc(forecast.generatedAt || "n/a")}</div>
+        <div>modelId</div><div>${esc(forecast.modelId || modelId)}</div>
+        <div>market</div><div>${esc(forecast.market || market)}</div>
+        <div>horizon</div><div>${esc(forecast.horizon || horizon)}</div>
+        <div>actuals_rows</div><div>${actuals.length}</div>
+        <div>forecast_points</div><div>${(forecast.series||[]).length}</div>
+      `;
+
+      const actBody = $("actTbl").querySelector("tbody");
+      actBody.innerHTML = tail(actuals, 12).map(r => `<tr><td>${esc(r.date)}</td><td>${esc(r.value)}</td></tr>`).join("");
+
+      const fcBody = $("fcTbl").querySelector("tbody");
+      const series = forecast.series || [];
+      fcBody.innerHTML = series.map(p => `
+        <tr>
+          <td>${esc(p.date)}</td>
+          <td>${esc(p.p10)}</td>
+          <td>${esc(p.p50)}</td>
+          <td>${esc(p.p90)}</td>
+        </tr>
+      `).join("");
+
+      const actDates = new Set(actuals.map(a => a.date));
+      const fcDates = series.map(s => s.date);
+      const overlap = fcDates.filter(d => actDates.has(d));
+      const miss = fcDates.filter(d => !actDates.has(d));
+
+      $("overlap").innerHTML = `
+        overlap_count=${overlap.length} / forecast_points=${fcDates.length}<br/>
+        overlap_dates=${esc(overlap.join(", ")) || "(none)"}<br/>
+        missing_in_actuals=${esc(miss.join(", ")) || "(none)"}
+      `;
+
+      const canvas = $("chart");
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = canvas.clientWidth || 520;
+      canvas.width = Math.floor(cssW * dpr);
+      canvas.height = Math.floor(260 * dpr);
+      canvas.style.height = "260px";
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+
+      drawChart(canvas, actuals, series);
+    }
+
+    function render(data) {
+      const results = data.results || [];
+      $("meta").textContent = `generatedAt: ${data.generatedAt || "n/a"} • rows: ${results.length}`;
+
+      const markets = uniq(results.map(r => r.market)).sort();
+      const mf = $("marketFilter");
+      mf.innerHTML = `<option value="">All</option>` + markets.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join("");
+
+      function applyFilter() {
+        const mSel = mf.value;
+        const q = $("search").value.trim().toLowerCase();
+
+        const filtered = results.filter(r => {
+          if (mSel && r.market !== mSel) return false;
+          if (!q) return true;
+          const blob = `${r.market} ${r.horizon} ${r.winnerModelId} ${(r.top3||[]).join(" ")} ${(r.ineligible||[]).map(x=>x.modelId).join(" ")}`.toLowerCase();
+          return blob.includes(q);
+        });
+
+        const tbody = $("tbl").querySelector("tbody");
+        tbody.innerHTML = filtered.map((r, idx) => `
+          <tr data-market="${esc(r.market)}" data-horizon="${esc(r.horizon)}" data-winner="${esc(r.winnerModelId)}">
+            <td>${esc(r.market)}</td>
+            <td>${esc(r.horizon)}</td>
+            <td><span class="tag">${esc(r.winnerModelId)}</span></td>
+            <td>${(r.top3||[]).map(x => `<span class="tag">${esc(x)}</span>`).join("")}</td>
+            <td>${esc((r.ineligible||[]).length)}</td>
+            <td>${esc(r.actualsQuality?.count ?? "")}</td>
+          </tr>
+        `).join("");
+
+        tbody.querySelectorAll("tr").forEach(tr => {
+          tr.addEventListener("click", async () => {
+            const market = tr.getAttribute("data-market");
+            const horizon = tr.getAttribute("data-horizon");
+            const winner = tr.getAttribute("data-winner");
+
+            $("panel").style.display = "block";
+            $("panelHint").textContent = "Loading…";
+
+            const actualsRes = await tryLoadActuals(market, horizon);
+            const forecastRes = await tryLoadForecast(market, horizon, winner);
+
+            renderDrilldown(
+              market,
+              horizon,
+              winner,
+              actualsRes.rows,
+              forecastRes.json,
+              { actuals: actualsRes.path, forecast: forecastRes.path }
+            );
+          });
+        });
+      }
+
+      applyFilter();
+      $("marketFilter").addEventListener("change", applyFilter);
+      $("search").addEventListener("input", applyFilter);
+    }
+
+    async function loadRunList() {
+      try {
+        const meta = await fetchJson("./reports/run-meta.json");
+        const runs = meta.runs || [];
+        const sel = $("runSel");
+        sel.innerHTML = `<option value="">latest</option>` + runs.map(r => `
+          <option value="${esc(r.runId)}">${esc(r.runId)}</option>
+        `).join("");
+
+        sel.addEventListener("change", async () => {
+          const runId = sel.value;
+          await loadRun(runId || null);
+        });
+      } catch (e) {
+        setStatus(false, "Could not load run list. Using latest.");
+      }
+    }
+
+    async function loadRun(runId) {
+      const path = runId ? `./reports/${runId}/winners.json` : "./reports/winners.json";
+      try {
+        setStatus(true, `Loading ${path}…`);
+        const data = await fetchJson(path);
+        render(data);
+        setStatus(true, `Loaded ${path}`);
+      } catch (e) {
+        setStatus(false, `Failed to load ${path}: ${e.message}`);
+      }
+    }
+
+    $("closeBtn").addEventListener("click", () => {
+      $("panel").style.display = "none";
+    });
+
+    async function main() {
+      await loadRunList();
+      await loadRun(null);
+    }
+
+    main();
+  </script>
+</body>
+</html>

@@ -3,124 +3,312 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>OleaForecast Dashboard</title>
+  <title>OleaForecast | Olive Oil Intelligence</title>
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
-    h1 { margin: 0 0 6px; }
-    .muted { color: #666; margin: 0 0 18px; }
-    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 12px 0 18px; }
-    input, select, button { padding: 8px 10px; }
-    button { cursor: pointer; }
+    @import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Space+Grotesk:wght@400;500;600&display=swap");
+
+    :root {
+      --bg: #f4efe6;
+      --ink: #1f1b16;
+      --muted: #6b6054;
+      --accent: #2f6b4f;
+      --accent-2: #c86b3c;
+      --card: #fffaf2;
+      --line: #eadfce;
+      --shadow: 0 14px 40px rgba(31, 27, 22, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: radial-gradient(1200px 600px at 10% -10%, #f7e9d6, transparent),
+                  radial-gradient(900px 500px at 90% 10%, #e3efe6, transparent),
+                  var(--bg);
+      min-height: 100vh;
+    }
+
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 24px 80px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 24px; }
+    .brand { display: flex; gap: 14px; align-items: center; }
+    .logo {
+      width: 44px; height: 44px; border-radius: 14px;
+      background: linear-gradient(135deg, #2f6b4f, #9bc48f);
+      box-shadow: inset 0 0 0 2px rgba(255,255,255,0.5);
+    }
+    .brand h1 { font-family: "Fraunces", serif; font-size: 22px; margin: 0; letter-spacing: 0.4px; }
+    .brand p { margin: 0; color: var(--muted); font-size: 12px; }
+    .link { color: var(--ink); text-decoration: none; border-bottom: 1px solid rgba(0,0,0,0.2); }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.3fr 0.7fr;
+      gap: 24px;
+      align-items: stretch;
+      margin: 20px 0 26px;
+    }
+    .hero-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+      animation: rise 600ms ease both;
+    }
+    .hero-card::after {
+      content: "";
+      position: absolute;
+      right: -40px; top: -40px;
+      width: 140px; height: 140px; border-radius: 40px;
+      background: linear-gradient(135deg, rgba(200,107,60,0.2), rgba(47,107,79,0.2));
+      transform: rotate(18deg);
+    }
+    .hero h2 {
+      font-family: "Fraunces", serif;
+      font-size: 34px;
+      line-height: 1.1;
+      margin: 0 0 12px;
+    }
+    .hero p { margin: 0 0 14px; color: var(--muted); }
+    .hero .pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: #e8f2ea; color: #1e3f2f;
+      padding: 6px 12px; border-radius: 999px; font-size: 12px;
+    }
+    .hero-metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .hero-metrics span {
+      background: #f4e8d8;
+      border: 1px solid #e6d4bf;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      color: #4a3b2f;
+    }
+
+    .status-stack { display: grid; gap: 12px; }
+    .status-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+    }
+    .status-title { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px; }
+    .status { margin-top: 8px; padding: 12px; border-radius: 12px; font-size: 13px; }
+    .ok { background: #eef7f1; border: 1px solid #b5e0c5; }
+    .err { background: #fff0ef; border: 1px solid #f0b9b2; }
+
+    .controls {
+      display: grid; grid-template-columns: 1.2fr 1fr 1fr 0.8fr;
+      gap: 12px; align-items: end; margin: 16px 0 20px;
+    }
+    label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 6px; }
+    select, input, button {
+      width: 100%; padding: 10px 12px; border-radius: 12px;
+      border: 1px solid var(--line); background: white; font-size: 14px;
+    }
+    button { cursor: pointer; background: var(--accent); color: white; border: none; }
+    .meta { font-size: 12px; color: var(--muted); }
+
+    .grid {
+      display: grid; grid-template-columns: 1.4fr 0.6fr; gap: 20px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+      animation: rise 700ms ease both;
+    }
+
     table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
-    th { background: #f6f6f6; text-align: left; }
-    tr:hover { background: #fafafa; }
-    .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; background:#eee; margin-right: 6px; }
-    details { margin: 10px 0; }
-    .err { padding: 12px; background: #fff4f4; border: 1px solid #f3b5b5; }
-    .ok { padding: 12px; background: #f4fff6; border: 1px solid #b5f3c0; }
-    .small { font-size: 12px; }
-    code { background:#f6f6f6; padding: 1px 6px; border-radius: 6px; }
+    th, td { border-bottom: 1px solid #eee1cf; padding: 10px; vertical-align: top; }
+    th { text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: 0.8px; }
+    tr:hover { background: #fff4e6; }
+    .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; background:#f0e5d6; margin-right: 6px; font-size: 12px; }
+
+    .rail h3 { margin: 0 0 8px; font-size: 14px; }
+    .rail ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+    .rail li { padding: 10px; border-radius: 12px; background: #fff4e6; border: 1px dashed #e7c9a9; font-size: 13px; }
+    .rail small { color: var(--muted); display: block; margin-top: 4px; }
+
     .panel {
-      position: fixed; right: 18px; top: 18px; bottom: 18px;
-      width: min(560px, calc(100vw - 36px));
-      background: white; border: 1px solid #ddd; border-radius: 12px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-      padding: 14px; overflow: auto; display: none;
+      position: fixed; inset: 24px; display: none; background: rgba(31,27,22,0.12);
+      backdrop-filter: blur(6px); border-radius: 24px; padding: 14px;
+    }
+    .panel-inner {
+      background: white; border-radius: 18px; border: 1px solid var(--line);
+      padding: 16px; height: 100%; overflow: auto;
     }
     .panel h2 { margin: 6px 0 10px; }
     .panel .actions { display:flex; gap:8px; align-items:center; margin-bottom:10px; }
     .kv { display:grid; grid-template-columns: 120px 1fr; gap:6px 10px; margin: 10px 0 14px; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
     .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .box { border: 1px solid #eee; border-radius: 10px; padding: 10px; }
+    .box { border: 1px solid #eee; border-radius: 12px; padding: 10px; background: #fffaf2; }
     .box h3 { margin: 0 0 8px; font-size: 14px; }
     .hint { color:#666; font-size: 12px; }
     .tbl2 { width:100%; border-collapse:collapse; }
     .tbl2 th,.tbl2 td { border: 1px solid #eee; padding: 6px; font-size: 12px; }
     .tbl2 th { background:#fafafa; }
+
+    @keyframes rise {
+      from { transform: translateY(10px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    @media (max-width: 980px) {
+      .hero { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
-  <h1>OleaForecast</h1>
-  <p class="muted">Dashboard from GitHub Pages deploys. Drilldown uses <code>dist/bundle</code> (real → fallback fixtures).</p>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <div>
+        <h1>OleaForecast</h1>
+        <p>Olive Oil Intelligence / Ευφυία Ελαιολάδου</p>
+      </div>
+    </div>
+    <a class="link" href="https://www.sales-tree.com" target="_blank" rel="noopener">Powered by Sales-Tree</a>
+  </header>
 
-  <div id="status" class="ok small">Loading…</div>
+  <main class="wrap">
+    <section class="hero">
+      <div class="hero-card">
+        <span class="pill">Risk radar • Ραντάρ κινδύνων</span>
+        <h2>Tool for detection, updates, and decisions in the olive oil world.</h2>
+        <p>Εργαλείο πρόβλεψης, ενημέρωσης και απόφασης στον κόσμο του ελαιολάδου.</p>
+        <p>Track markets, validate data quality, detect anomalies, and turn forecasts into actions for producers, traders, and cooperatives.</p>
+        <div class="hero-metrics">
+          <span>Forecast watch / Παρακολούθηση πρόβλεψης</span>
+          <span>Quality gates / Πύλες ποιότητας</span>
+          <span>Alerts / Ειδοποιήσεις</span>
+        </div>
+      </div>
+      <div class="status-stack">
+        <div class="status-card">
+          <div class="status-title">Live status / Κατάσταση</div>
+          <div id="status" class="status ok">Loading…</div>
+        </div>
+        <div class="status-card">
+          <div class="status-title">Updates / Ενημερώσεις</div>
+          <div class="meta">New observations, model runs, and alerts appear here as they land.</div>
+        </div>
+      </div>
+    </section>
 
-  <div class="row">
-    <label>Run:
-      <select id="runSel">
-        <option value="">latest</option>
-      </select>
-    </label>
+    <section class="controls card">
+      <div>
+        <label>Run / Έκδοση</label>
+        <select id="runSel">
+          <option value="">latest</option>
+        </select>
+      </div>
+      <div>
+        <label>Market / Αγορά</label>
+        <select id="marketFilter">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div>
+        <label>Search / Αναζήτηση</label>
+        <input id="search" placeholder="ES / IT / W4 / modelId" />
+      </div>
+      <div>
+        <label>Meta</label>
+        <div class="meta" id="meta"></div>
+      </div>
+    </section>
 
-    <label>Market:
-      <select id="marketFilter">
-        <option value="">All</option>
-      </select>
-    </label>
+    <section class="grid">
+      <div class="card">
+        <h3>Forecast winners / Νικητές προβλέψεων</h3>
+        <table id="tbl">
+          <thead>
+            <tr>
+              <th>Market</th>
+              <th>Horizon</th>
+              <th>Winner</th>
+              <th>Top-3</th>
+              <th>Ineligible</th>
+              <th>Actuals N</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <aside class="card rail">
+        <h3>Decision signals / Σήματα αποφάσεων</h3>
+        <ul>
+          <li>Alerts: price spikes, tender gaps, weekly volatility.
+            <small>Alerts are triggered when market thresholds are exceeded.</small>
+          </li>
+          <li>Data quality: coverage, freshness, and source conflicts.
+            <small>Spot missing markets or stale observations fast.</small>
+          </li>
+          <li>Evaluation: compare model winners by horizon.
+            <small>Track performance by market and product.</small>
+          </li>
+        </ul>
+      </aside>
+    </section>
 
-    <label>Search:
-      <input id="search" placeholder="ES / IT / W4 / modelId…" />
-    </label>
+    <section class="card" style="margin-top:20px;">
+      <h3>Ineligible details / Μη έγκυρα</h3>
+      <div id="ineligible"></div>
+    </section>
+  </main>
 
-    <span class="small muted" id="meta"></span>
-  </div>
-
-  <table id="tbl">
-    <thead>
-      <tr>
-        <th>Market</th>
-        <th>Horizon</th>
-        <th>Winner</th>
-        <th>Top-3</th>
-        <th>Ineligible</th>
-        <th>Actuals N</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-  <h2>Ineligible details</h2>
-  <div id="ineligible"></div>
-
-  <!-- Drilldown Panel -->
   <div class="panel" id="panel">
-    <div class="actions">
-      <button id="closeBtn">Close</button>
-      <span class="hint" id="panelHint"></span>
-    </div>
-    <h2 id="panelTitle">Drilldown</h2>
-    <div class="kv mono" id="panelMeta"></div>
-
-    <div class="grid2">
-      <div class="box">
-        <h3>Actuals (tail)</h3>
-        <div class="hint">From <code>bundle/&lt;MARKET&gt;/&lt;H&gt;/actuals.csv</code> or fallback <code>bundle/_fixtures</code></div>
-        <table class="tbl2" id="actTbl">
-          <thead><tr><th>date</th><th>value</th></tr></thead>
-          <tbody></tbody>
-        </table>
+    <div class="panel-inner">
+      <div class="actions">
+        <button id="closeBtn">Close</button>
+        <span class="hint" id="panelHint"></span>
       </div>
-      <div class="box">
-        <h3>Winner forecast (series)</h3>
-        <div class="hint">From <code>bundle/&lt;MARKET&gt;/&lt;H&gt;/&lt;MODEL&gt;.json</code> or fallback <code>bundle/_fixtures</code></div>
-        <table class="tbl2" id="fcTbl">
-          <thead><tr><th>date</th><th>p10</th><th>p50</th><th>p90</th></tr></thead>
-          <tbody></tbody>
-        </table>
+      <h2 id="panelTitle">Drilldown</h2>
+      <div class="kv mono" id="panelMeta"></div>
+
+      <div class="grid2">
+        <div class="box">
+          <h3>Actuals (tail)</h3>
+          <div class="hint">From <code>bundle/&lt;MARKET&gt;/&lt;H&gt;/actuals.csv</code> or fallback <code>bundle/_fixtures</code></div>
+          <table class="tbl2" id="actTbl">
+            <thead><tr><th>date</th><th>value</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="box">
+          <h3>Winner forecast (series)</h3>
+          <div class="hint">From <code>bundle/&lt;MARKET&gt;/&lt;H&gt;/&lt;MODEL&gt;.json</code> or fallback <code>bundle/_fixtures</code></div>
+          <table class="tbl2" id="fcTbl">
+            <thead><tr><th>date</th><th>p10</th><th>p50</th><th>p90</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
-    </div>
 
-    <div class="box" style="margin-top:12px;">
-      <h3>Overlap check</h3>
-      <div id="overlap" class="mono"></div>
-    </div>
+      <div class="box" style="margin-top:12px;">
+        <h3>Overlap check</h3>
+        <div id="overlap" class="mono"></div>
+      </div>
 
-    <div class="box" style="margin-top:12px;">
-      <h3>Chart</h3>
-      <div class="hint">Actuals line + forecast p10/p50/p90 band (dates on x-axis).</div>
-      <canvas id="chart" width="520" height="260" style="width:100%; height:auto; border:1px solid #eee; border-radius:10px;"></canvas>
+      <div class="box" style="margin-top:12px;">
+        <h3>Chart</h3>
+        <div class="hint">Actuals line + forecast p10/p50/p90 band (dates on x-axis).</div>
+        <canvas id="chart" width="520" height="260" style="width:100%; height:auto; border:1px solid #eee; border-radius:10px;"></canvas>
+      </div>
     </div>
   </div>
 
@@ -135,7 +323,7 @@
 
     function setStatus(ok, msg) {
       const el = $("status");
-      el.className = (ok ? "ok" : "err") + " small";
+      el.className = (ok ? "ok" : "err") + " status";
       el.textContent = msg;
     }
 
