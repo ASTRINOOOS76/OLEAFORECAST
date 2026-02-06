@@ -4,14 +4,7 @@ import { loadActualsCsv } from "./load-actuals";
 import { loadForecastJson } from "./load-forecast";
 import { toEvalInput } from "./evaluator";
 import { decideWinner } from "./winner-service";
-import type { WinnerDecision } from "./types";
-
-type BatchResult = {
-  market: string;
-  horizon: string;
-  winnerModelId: string;
-  ranked: WinnerDecision["ranked"]; // keep exact type from WinnerDecision
-};
+import { writeJson, writeText } from "./write-report";
 
 function listDirs(path: string): string[] {
   return readdirSync(path, { withFileTypes: true })
@@ -44,14 +37,17 @@ if (!dataRoot) {
   process.exit(2);
 }
 
-const markets = listDirs(dataRoot);
-const results: BatchResult[] = [];
+const results: Array<{
+  market: string;
+  horizon: string;
+  winnerModelId: string;
+  ranked: any; // decision schema may evolve; keep output tolerant
+}> = [];
 
-for (const market of markets) {
+for (const market of listDirs(dataRoot)) {
   const marketPath = join(dataRoot, market);
-  const horizons = listDirs(marketPath);
 
-  for (const horizon of horizons) {
+  for (const horizon of listDirs(marketPath)) {
     const hzPath = join(marketPath, horizon);
     const actualsPath = join(hzPath, "actuals.csv");
 
@@ -59,16 +55,16 @@ for (const market of markets) {
 
     const actuals = loadActualsCsv(actualsPath);
 
-    // all json files in the horizon folder are treated as model payloads
-    const forecastFiles = listJsonFiles(hzPath);
-
-    // ignore accidental files named like actuals.json etc.
-    const modelFiles = forecastFiles.filter((f) => f.toLowerCase() !== "actuals.json");
+    const modelFiles = listJsonFiles(hzPath).filter(
+      (f) => f.toLowerCase() !== "actuals.json"
+    );
     if (modelFiles.length === 0) continue;
 
     const evals = modelFiles.map((f) => {
       const payload = loadForecastJson(join(hzPath, f));
-      return toEvalInput(payload, actuals, { medianPriceEurPerTon: actuals.at(-1)?.value });
+      return toEvalInput(payload, actuals, {
+        medianPriceEurPerTon: actuals.at(-1)?.value
+      });
     });
 
     const decision = decideWinner(market as any, horizon as any, evals);
@@ -82,4 +78,22 @@ for (const market of markets) {
   }
 }
 
-console.log(JSON.stringify({ generatedAt: new Date().toISOString(), results }, null, 2));
+const report = { generatedAt: new Date().toISOString(), results };
+
+// Write reports/
+writeJson("reports/winners.json", report);
+
+const md: string[] = [];
+md.push("# Batch Winners");
+md.push("");
+md.push(`Generated at: ${report.generatedAt}`);
+md.push("");
+md.push("| Market | Horizon | Winner |");
+md.push("|---|---|---|");
+for (const r of results) {
+  md.push(`| ${r.market} | ${r.horizon} | ${r.winnerModelId} |`);
+}
+writeText("reports/README.md", md.join("\n"));
+
+// Also print to stdout (useful in CI logs)
+console.log(JSON.stringify(report, null, 2));
