@@ -8,6 +8,7 @@ on:
       - "server/**"
       - "data/**"
       - "site/**"
+      - "scripts/**"
       - "package.json"
       - "package-lock.json"
       - "tsconfig.json"
@@ -44,12 +45,36 @@ jobs:
       - name: Generate reports (winners.json)
         run: npm run -s eval:batch -- data
 
-      - name: Prepare site bundle
+      - name: Validate winners.json is valid JSON
+        run: node -e "JSON.parse(require('fs').readFileSync('reports/winners.json','utf8')); console.log('winners.json OK')"
+
+      - name: Prepare site bundle + history
         run: |
           rm -rf dist
           mkdir -p dist
           cp -r site/* dist/
           cp reports/winners.json dist/winners.json
+
+          # history snapshot key
+          TS=$(node -e "const j=require('./reports/winners.json'); process.stdout.write((j.generatedAt||new Date().toISOString()).replace(/[:.]/g,'-'))")
+          mkdir -p dist/history/$TS
+          cp reports/winners.json dist/history/$TS/winners.json
+
+          # create/refresh index.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const path=require('path');
+
+          function listDirs(p){
+            if(!fs.existsSync(p)) return [];
+            return fs.readdirSync(p,{withFileTypes:true}).filter(d=>d.isDirectory()).map(d=>d.name).sort().reverse();
+          }
+
+          const histDir='dist/history';
+          const runs=listDirs(histDir).slice(0, 20); // keep latest 20
+          const index={ updatedAt: new Date().toISOString(), runs };
+          fs.writeFileSync(path.join(histDir,'index.json'), JSON.stringify(index,null,2)+'\n','utf8');
+          NODE
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
