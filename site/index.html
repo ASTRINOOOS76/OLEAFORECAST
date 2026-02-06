@@ -116,6 +116,12 @@
       <h3>Overlap check</h3>
       <div id="overlap" class="mono"></div>
     </div>
+
+    <div class="box" style="margin-top:12px;">
+      <h3>Chart</h3>
+      <div class="hint">Actuals line + forecast p10/p50/p90 band (dates on x-axis).</div>
+      <canvas id="chart" width="520" height="260" style="width:100%; height:auto; border:1px solid #eee; border-radius:10px;"></canvas>
+    </div>
   </div>
 
   <script>
@@ -192,6 +198,116 @@
 
     function tail(arr, n) { return arr.slice(Math.max(0, arr.length - n)); }
 
+    function drawChart(canvas, actuals, series) {
+      const ctx = canvas.getContext("2d");
+      const W = canvas.width, H = canvas.height;
+      ctx.clearRect(0,0,W,H);
+
+      // collect points for x-axis (union of dates)
+      const dates = Array.from(new Set([
+        ...actuals.map(a=>a.date),
+        ...series.map(s=>s.date)
+      ])).sort();
+
+      if (dates.length < 2) {
+        ctx.fillText("Not enough data to plot", 10, 20);
+        return;
+      }
+
+      // map date -> x index
+      const xOf = (d) => dates.indexOf(d);
+      const padL=40, padR=12, padT=14, padB=26;
+      const innerW = W - padL - padR;
+      const innerH = H - padT - padB;
+
+      // y-range from actuals + forecast band
+      const ys = [];
+      for (const a of actuals) ys.push(a.value);
+      for (const s of series) { ys.push(s.p10, s.p50, s.p90); }
+
+      const yMin = Math.min(...ys.filter(Number.isFinite));
+      const yMax = Math.max(...ys.filter(Number.isFinite));
+      const span = (yMax - yMin) || 1;
+
+      const x = (d) => padL + (xOf(d) / (dates.length - 1)) * innerW;
+      const y = (v) => padT + (1 - ((v - yMin) / span)) * innerH;
+
+      // axes
+      ctx.strokeStyle = "#ddd";
+      ctx.beginPath();
+      ctx.moveTo(padL, padT);
+      ctx.lineTo(padL, padT + innerH);
+      ctx.lineTo(padL + innerW, padT + innerH);
+      ctx.stroke();
+
+      // y labels (min/max)
+      ctx.fillStyle = "#666";
+      ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+      ctx.fillText(String(Math.round(yMax)), 4, padT + 10);
+      ctx.fillText(String(Math.round(yMin)), 4, padT + innerH);
+
+      // forecast band (p10->p90 polygon)
+      const byDate = new Map(series.map(s=>[s.date, s]));
+      const bandDates = dates.filter(d => byDate.has(d));
+
+      if (bandDates.length >= 2) {
+        ctx.fillStyle = "rgba(0,0,0,0.06)";
+        ctx.beginPath();
+        // top: p90 left->right
+        for (let i=0;i<bandDates.length;i++){
+          const d = bandDates[i];
+          const s = byDate.get(d);
+          ctx.lineTo(x(d), y(s.p90));
+        }
+        // bottom: p10 right->left
+        for (let i=bandDates.length-1;i>=0;i--){
+          const d = bandDates[i];
+          const s = byDate.get(d);
+          ctx.lineTo(x(d), y(s.p10));
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        // p50 line
+        ctx.strokeStyle = "#111";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i=0;i<bandDates.length;i++){
+          const d = bandDates[i];
+          const s = byDate.get(d);
+          const xx = x(d), yy = y(s.p50);
+          if (i===0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+        }
+        ctx.stroke();
+        ctx.lineWidth = 1;
+      }
+
+      // actuals line
+      const aByDate = new Map(actuals.map(a=>[a.date, a.value]));
+      const aDates = dates.filter(d => aByDate.has(d));
+      if (aDates.length >= 2) {
+        ctx.strokeStyle = "#555";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i=0;i<aDates.length;i++){
+          const d = aDates[i];
+          const v = aByDate.get(d);
+          const xx = x(d), yy = y(v);
+          if (i===0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+        }
+        ctx.stroke();
+        ctx.lineWidth = 1;
+      }
+
+      // x labels (first/last)
+      ctx.fillStyle = "#666";
+      ctx.font = "11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+      ctx.fillText(dates[0], padL, H - 8);
+      const last = dates[dates.length-1];
+      const tw = ctx.measureText(last).width;
+      ctx.fillText(last, padL + innerW - tw, H - 8);
+    }
+
     function renderDrilldown(market, horizon, modelId, actuals, forecast, paths) {
       $("panelTitle").textContent = `${market} / ${horizon} — winner: ${modelId}`;
       $("panelHint").textContent = `actuals: ${paths.actuals} • forecast: ${paths.forecast}`;
@@ -228,6 +344,19 @@
         overlap_dates=${esc(overlap.join(", ")) || "(none)"}<br/>
         missing_in_actuals=${esc(miss.join(", ")) || "(none)"}
       `;
+
+      // draw chart
+      const canvas = $("chart");
+      // ensure high-DPI crispness
+      const dpr = window.devicePixelRatio || 1;
+      const cssW = canvas.clientWidth || 520;
+      canvas.width = Math.floor(cssW * dpr);
+      canvas.height = Math.floor(260 * dpr);
+      canvas.style.height = "260px";
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+
+      drawChart(canvas, actuals, series);
     }
 
     function render(data) {
