@@ -55,9 +55,13 @@ jobs:
           cp -r site/* dist/
           cp reports/winners.json dist/winners.json
 
-          # bundle minimal data for UI drilldown
+          # bundle data for UI drilldown (real -> fallback fixtures)
           mkdir -p dist/bundle
+
+          # fixtures always
           cp -r data/_fixtures dist/bundle/_fixtures
+
+          # real markets if present
           cp -r data/ES dist/bundle/ES || true
           cp -r data/IT dist/bundle/IT || true
           cp -r data/GR dist/bundle/GR || true

@@ -9,33 +9,59 @@
     h1 { margin: 0 0 6px; }
     .muted { color: #666; margin: 0 0 18px; }
     .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 12px 0 18px; }
-    input, select { padding: 8px 10px; }
+    input, select, button { padding: 8px 10px; }
+    button { cursor: pointer; }
     table { border-collapse: collapse; width: 100%; }
     th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
     th { background: #f6f6f6; text-align: left; }
+    tr:hover { background: #fafafa; }
     .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; background:#eee; margin-right: 6px; }
     details { margin: 10px 0; }
     .err { padding: 12px; background: #fff4f4; border: 1px solid #f3b5b5; }
     .ok { padding: 12px; background: #f4fff6; border: 1px solid #b5f3c0; }
     .small { font-size: 12px; }
-    a { color: inherit; }
+    code { background:#f6f6f6; padding: 1px 6px; border-radius: 6px; }
+    .panel {
+      position: fixed; right: 18px; top: 18px; bottom: 18px;
+      width: min(560px, calc(100vw - 36px));
+      background: white; border: 1px solid #ddd; border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+      padding: 14px; overflow: auto; display: none;
+    }
+    .panel h2 { margin: 6px 0 10px; }
+    .panel .actions { display:flex; gap:8px; align-items:center; margin-bottom:10px; }
+    .kv { display:grid; grid-template-columns: 120px 1fr; gap:6px 10px; margin: 10px 0 14px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .box { border: 1px solid #eee; border-radius: 10px; padding: 10px; }
+    .box h3 { margin: 0 0 8px; font-size: 14px; }
+    .hint { color:#666; font-size: 12px; }
+    .tbl2 { width:100%; border-collapse:collapse; }
+    .tbl2 th,.tbl2 td { border: 1px solid #eee; padding: 6px; font-size: 12px; }
+    .tbl2 th { background:#fafafa; }
   </style>
 </head>
 <body>
   <h1>OleaForecast</h1>
-  <p class="muted">Live dashboard from latest <code>reports/winners.json</code> published to GitHub Pages.</p>
+  <p class="muted">Dashboard from GitHub Pages deploys. Drilldown uses <code>dist/bundle</code> (real → fallback fixtures).</p>
 
-  <div id="status" class="ok small">Loading</div>
+  <div id="status" class="ok small">Loading…</div>
 
   <div class="row">
-    <label>Filter market:
+    <label>Run:
+      <select id="runSel">
+        <option value="">latest</option>
+      </select>
+    </label>
+
+    <label>Market:
       <select id="marketFilter">
         <option value="">All</option>
       </select>
     </label>
 
     <label>Search:
-      <input id="search" placeholder="ES / IT / W4 / modelId" />
+      <input id="search" placeholder="ES / IT / W4 / modelId…" />
     </label>
 
     <span class="small muted" id="meta"></span>
@@ -58,6 +84,40 @@
   <h2>Ineligible details</h2>
   <div id="ineligible"></div>
 
+  <!-- Drilldown Panel -->
+  <div class="panel" id="panel">
+    <div class="actions">
+      <button id="closeBtn">Close</button>
+      <span class="hint" id="panelHint"></span>
+    </div>
+    <h2 id="panelTitle">Drilldown</h2>
+    <div class="kv mono" id="panelMeta"></div>
+
+    <div class="grid2">
+      <div class="box">
+        <h3>Actuals (tail)</h3>
+        <div class="hint">From <code>bundle/&lt;MARKET&gt;/&lt;H&gt;/actuals.csv</code> or fallback <code>bundle/_fixtures</code></div>
+        <table class="tbl2" id="actTbl">
+          <thead><tr><th>date</th><th>value</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="box">
+        <h3>Winner forecast (series)</h3>
+        <div class="hint">From <code>bundle/&lt;MARKET&gt;/&lt;H&gt;/&lt;MODEL&gt;.json</code> or fallback <code>bundle/_fixtures</code></div>
+        <table class="tbl2" id="fcTbl">
+          <thead><tr><th>date</th><th>p10</th><th>p50</th><th>p90</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="box" style="margin-top:12px;">
+      <h3>Overlap check</h3>
+      <div id="overlap" class="mono"></div>
+    </div>
+  </div>
+
   <script>
     const $ = (id) => document.getElementById(id);
 
@@ -73,15 +133,107 @@
       el.textContent = msg;
     }
 
-    function uniq(arr) {
-      return Array.from(new Set(arr));
+    function uniq(arr) { return Array.from(new Set(arr)); }
+
+    async function fetchJson(url) {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+      return await res.json();
+    }
+
+    async function fetchText(url) {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+      return await res.text();
+    }
+
+    function parseActualsCsv(text) {
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if (lines.length < 2) return [];
+      const hdr = lines[0].toLowerCase();
+      if (hdr !== "date,value") throw new Error(`Bad actuals header: ${lines[0]}`);
+      const out = [];
+      for (let i=1;i<lines.length;i++){
+        const [date, v] = lines[i].split(",").map(x=>x.trim());
+        const value = Number(v);
+        if (!date || !Number.isFinite(value)) continue;
+        out.push({ date, value });
+      }
+      return out;
+    }
+
+    async function tryLoadActuals(market, horizon) {
+      const paths = [
+        `./bundle/${market}/${horizon}/actuals.csv`,
+        `./bundle/_fixtures/${market}/${horizon}/actuals.csv`
+      ];
+      for (const p of paths) {
+        try {
+          const txt = await fetchText(p);
+          return { path: p, rows: parseActualsCsv(txt) };
+        } catch (_) {}
+      }
+      throw new Error(`actuals not found for ${market}/${horizon}`);
+    }
+
+    async function tryLoadForecast(market, horizon, modelId) {
+      const paths = [
+        `./bundle/${market}/${horizon}/${modelId}.json`,
+        `./bundle/_fixtures/${market}/${horizon}/${modelId}.json`
+      ];
+      for (const p of paths) {
+        try {
+          const j = await fetchJson(p);
+          return { path: p, json: j };
+        } catch (_) {}
+      }
+      throw new Error(`forecast not found for ${market}/${horizon}/${modelId}`);
+    }
+
+    function tail(arr, n) { return arr.slice(Math.max(0, arr.length - n)); }
+
+    function renderDrilldown(market, horizon, modelId, actuals, forecast, paths) {
+      $("panelTitle").textContent = `${market} / ${horizon} — winner: ${modelId}`;
+      $("panelHint").textContent = `actuals: ${paths.actuals} • forecast: ${paths.forecast}`;
+      $("panelMeta").innerHTML = `
+        <div>generatedAt</div><div>${esc(forecast.generatedAt || "n/a")}</div>
+        <div>modelId</div><div>${esc(forecast.modelId || modelId)}</div>
+        <div>market</div><div>${esc(forecast.market || market)}</div>
+        <div>horizon</div><div>${esc(forecast.horizon || horizon)}</div>
+        <div>actuals_rows</div><div>${actuals.length}</div>
+        <div>forecast_points</div><div>${(forecast.series||[]).length}</div>
+      `;
+
+      const actBody = $("actTbl").querySelector("tbody");
+      actBody.innerHTML = tail(actuals, 12).map(r => `<tr><td>${esc(r.date)}</td><td>${esc(r.value)}</td></tr>`).join("");
+
+      const fcBody = $("fcTbl").querySelector("tbody");
+      const series = forecast.series || [];
+      fcBody.innerHTML = series.map(p => `
+        <tr>
+          <td>${esc(p.date)}</td>
+          <td>${esc(p.p10)}</td>
+          <td>${esc(p.p50)}</td>
+          <td>${esc(p.p90)}</td>
+        </tr>
+      `).join("");
+
+      const actDates = new Set(actuals.map(a => a.date));
+      const fcDates = series.map(s => s.date);
+      const overlap = fcDates.filter(d => actDates.has(d));
+      const miss = fcDates.filter(d => !actDates.has(d));
+
+      $("overlap").innerHTML = `
+        overlap_count=${overlap.length} / forecast_points=${fcDates.length}<br/>
+        overlap_dates=${esc(overlap.join(", ")) || "(none)"}<br/>
+        missing_in_actuals=${esc(miss.join(", ")) || "(none)"}
+      `;
     }
 
     function render(data) {
       const results = data.results || [];
-      $("meta").textContent = `generatedAt: ${data.generatedAt || "n/a"}  rows: ${results.length}`;
+      $("meta").textContent = `generatedAt: ${data.generatedAt || "n/a"} • rows: ${results.length}`;
 
-      // market filter options
       const markets = uniq(results.map(r => r.market)).sort();
       const mf = $("marketFilter");
       mf.innerHTML = `<option value="">All</option>` + markets.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join("");
@@ -97,10 +249,9 @@
           return blob.includes(q);
         });
 
-        // table
         const tbody = $("tbl").querySelector("tbody");
-        tbody.innerHTML = filtered.map(r => `
-          <tr>
+        tbody.innerHTML = filtered.map((r, idx) => `
+          <tr data-market="${esc(r.market)}" data-horizon="${esc(r.horizon)}" data-winner="${esc(r.winnerModelId)}">
             <td>${esc(r.market)}</td>
             <td>${esc(r.horizon)}</td>
             <td><span class="tag">${esc(r.winnerModelId)}</span></td>
@@ -110,7 +261,25 @@
           </tr>
         `).join("");
 
-        // ineligible details
+        tbody.querySelectorAll("tr").forEach(tr => {
+          tr.addEventListener("click", async () => {
+            const market = tr.getAttribute("data-market");
+            const horizon = tr.getAttribute("data-horizon");
+            const winner = tr.getAttribute("data-winner");
+
+            $("panel").style.display = "block";
+            $("panelHint").textContent = "Loading…";
+
+            try {
+              const a = await tryLoadActuals(market, horizon);
+              const f = await tryLoadForecast(market, horizon, winner);
+              renderDrilldown(market, horizon, winner, a.rows, f.json, { actuals: a.path, forecast: f.path });
+            } catch (e) {
+              $("panelHint").textContent = "Load failed: " + (e?.message || e);
+            }
+          });
+        });
+
         const box = $("ineligible");
         const blocks = filtered
           .filter(r => (r.ineligible||[]).length > 0)
@@ -120,7 +289,7 @@
             ).join("");
             return `
               <details>
-                <summary><b>${esc(r.market)} / ${esc(r.horizon)}</b>  ineligible: ${(r.ineligible||[]).length}</summary>
+                <summary><b>${esc(r.market)} / ${esc(r.horizon)}</b> — ineligible: ${(r.ineligible||[]).length}</summary>
                 <ul>${items}</ul>
               </details>
             `;
@@ -134,16 +303,33 @@
       applyFilter();
     }
 
+    async function loadRun(runKey) {
+      if (!runKey) return fetchJson("./winners.json");
+      return fetchJson(`./history/${encodeURIComponent(runKey)}/winners.json`);
+    }
+
     async function main() {
+      $("closeBtn").onclick = () => $("panel").style.display = "none";
+
       try {
-        setStatus(true, "Loading winners.json");
-        const res = await fetch("./winners.json", { cache: "no-store" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        setStatus(true, "OK");
-        render(data);
+        setStatus(true, "Loading history index…");
+        const idx = await fetchJson("./history/index.json");
+
+        const rs = $("runSel");
+        rs.innerHTML = `<option value="">latest</option>` + (idx.runs || []).map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join("");
+
+        async function refresh() {
+          const key = rs.value;
+          setStatus(true, key ? `Loading run ${key}…` : "Loading latest…");
+          const data = await loadRun(key);
+          setStatus(true, "OK");
+          render(data);
+        }
+
+        rs.onchange = refresh;
+        await refresh();
       } catch (e) {
-        setStatus(false, "Failed to load winners.json. Did Pages deploy run? " + (e?.message || e));
+        setStatus(false, "Failed to load dashboard data. " + (e?.message || e));
       }
     }
 
