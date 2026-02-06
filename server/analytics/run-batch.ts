@@ -5,6 +5,7 @@ import { loadForecastJson } from "./load-forecast";
 import { toEvalInput } from "./evaluator";
 import { decideWinner } from "./winner-service";
 import { writeJson, writeText } from "./write-report";
+import { assertActualsQuality } from "./data-quality";
 
 function listDirs(path: string): string[] {
   return readdirSync(path, { withFileTypes: true })
@@ -41,7 +42,13 @@ const results: Array<{
   market: string;
   horizon: string;
   winnerModelId: string;
-  ranked: any; // decision schema may evolve; keep output tolerant
+  ranked: any;
+  actualsQuality: {
+    count: number;
+    duplicates: string[];
+    nonFinite: number;
+    isSorted: boolean;
+  };
 }> = [];
 
 for (const market of listDirs(dataRoot)) {
@@ -54,6 +61,7 @@ for (const market of listDirs(dataRoot)) {
     if (!existsSync(actualsPath)) continue;
 
     const actuals = loadActualsCsv(actualsPath);
+    const q = assertActualsQuality(actuals);
 
     const modelFiles = listJsonFiles(hzPath).filter(
       (f) => f.toLowerCase() !== "actuals.json"
@@ -73,14 +81,14 @@ for (const market of listDirs(dataRoot)) {
       market,
       horizon,
       winnerModelId: decision.winnerModelId,
-      ranked: decision.ranked
+      ranked: decision.ranked,
+      actualsQuality: q
     });
   }
 }
 
 const report = { generatedAt: new Date().toISOString(), results };
 
-// Write reports/
 writeJson("reports/winners.json", report);
 
 const md: string[] = [];
@@ -88,12 +96,14 @@ md.push("# Batch Winners");
 md.push("");
 md.push(`Generated at: ${report.generatedAt}`);
 md.push("");
-md.push("| Market | Horizon | Winner |");
-md.push("|---|---|---|");
+md.push("| Market | Horizon | Winner | Actuals N | Sorted |");
+md.push("|---|---|---:|---:|---|");
 for (const r of results) {
-  md.push(`| ${r.market} | ${r.horizon} | ${r.winnerModelId} |`);
+  md.push(`| ${r.market} | ${r.horizon} | ${r.winnerModelId} | ${r.actualsQuality.count} | ${r.actualsQuality.isSorted ? "yes" : "no"} |`);
 }
+md.push("");
+md.push("> Note: Duplicate dates or non-finite values will fail the run (data quality gate).");
+
 writeText("reports/README.md", md.join("\n"));
 
-// Also print to stdout (useful in CI logs)
 console.log(JSON.stringify(report, null, 2));
