@@ -19,5 +19,6 @@
     "build": "node -e \"console.log('build: ok (placeholder)')\"",
     "start": "node -e \"console.log('start: pending')\"",
     "dev": "node -e \"console.log('dev: pending')\""
+    "eval:run": "tsx server/analytics/run-eval.ts"
   }
 }
