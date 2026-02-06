@@ -17,6 +17,7 @@
     "test": "bash scripts/run-smoke.sh",
     "bridge:demo": "tsx server/analytics/bridge-demo.ts",
     "eval:run": "tsx server/analytics/run-eval.ts",
+    "eval:batch": "tsx server/analytics/run-batch.ts",
     "build": "node -e \"console.log('build: ok (placeholder)')\"",
     "start": "node -e \"console.log('start: pending')\"",
     "dev": "node -e \"console.log('dev: pending')\""
