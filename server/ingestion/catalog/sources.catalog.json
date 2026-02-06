@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "sourceId": "sedik_deltio_timon",
+      "market": "GR",
+      "type": "html_table",
+      "url": "https://sedik.gr/deltio-timon",
+      "parser": "sedik",
+      "frequency": "event",
+      "outputs": [
+        { "grade": "EVOO", "unit": "EUR_KG", "field": "AuctionPrice" }
+      ],
+      "notes": "SEDIK is tenders/auctions; not a daily origin market quote. Keep as official historical events."
+    },
+
+    {
+      "sourceId": "ismea_stub",
+      "market": "IT",
+      "type": "stub",
+      "url": "",
+      "parser": "stub",
+      "frequency": "unknown",
+      "outputs": []
+    },
+    {
+      "sourceId": "oleista_stub",
+      "market": "TN",
+      "type": "stub",
+      "url": "",
+      "parser": "stub",
+      "frequency": "unknown",
+      "outputs": []
+    }
+  ]
+}

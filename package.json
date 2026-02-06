@@ -8,8 +8,8 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "typescript": "^5.6.0",
-    "tsx": "^4.19.0"
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
@@ -19,10 +19,15 @@
     "eval:run": "tsx server/analytics/run-eval.ts",
     "eval:batch": "tsx server/analytics/run-batch.ts",
     "ingest:canonical": "tsx server/ingestion/run-canonical.ts",
+    "ingest:sources": "tsx server/ingestion/fetch-observations.ts",
+    "build:canonical": "tsx server/ingestion/build-canonical.ts",
     "forecast:run": "tsx server/ingestion/run-forecasts.ts",
     "py:deps": "python3 -m pip install -r ml_legacy/requirements.txt",
     "build": "node -e \"console.log('build: ok (placeholder)')\"",
     "start": "node -e \"console.log('start: pending')\"",
     "dev": "node -e \"console.log('dev: pending')\""
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0"
   }
 }
