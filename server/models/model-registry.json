@@ -1,0 +1,15 @@
+{
+  "defaults": {
+    "horizons": ["W4"],
+    "markets": ["ES", "IT", "GR", "TN", "PT", "TR"],
+    "grade": "EVOO"
+  },
+  "models": [
+    { "modelId": "E1", "engine": "prophet", "grade": "EVOO" },
+    { "modelId": "E2", "engine": "ets", "grade": "EVOO" },
+
+    { "modelId": "E3", "engine": "naive", "grade": "EVOO", "variant": "last" },
+    { "modelId": "E4", "engine": "naive", "grade": "EVOO", "variant": "drift" },
+    { "modelId": "E5", "engine": "naive", "grade": "EVOO", "variant": "seasonal52" }
+  ]
+}

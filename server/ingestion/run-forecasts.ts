@@ -1,6 +1,17 @@
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+
+type Registry = {
+  defaults: { horizons: string[]; markets: string[]; grade?: string };
+  models: Array<{
+    modelId: string;
+    engine: "xgb" | "prophet" | "ets" | "naive";
+    grade?: string;
+    variant?: string;   // naive variants
+    seriesKey?: string; // override artifact key
+  }>;
+};
 
 function run(cmd: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -26,49 +37,57 @@ function parseArgs(argv: string[]) {
 }
 
 function csvList(s: string): string[] {
-  return s.split(",").map((x) => x.trim()).filter(Boolean);
+  return s.split(",").map(x => x.trim()).filter(Boolean);
+}
+
+function loadRegistry(path: string): Registry {
+  const raw = readFileSync(path, "utf8");
+  return JSON.parse(raw) as Registry;
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const markets = args.markets ? csvList(args.markets) : ["ES", "IT", "GR", "TN", "PT", "TR"];
-  const horizon = (args.horizon || "W4").trim();
-  const engine = (args.engine || "naive").trim(); // naive|xgb|prophet|ets
-  const modelId = (args.modelId || "E0").trim();
-  const grade = (args.grade || "EVOO").trim();
+  const registryPath = (args.registry || "server/models/model-registry.json").trim();
   const python = (args.python || "python3").trim();
 
-  for (const m of markets) {
-    const actualsPath = `data/${m}/${horizon}/actuals.csv`;
-    if (!existsSync(actualsPath)) {
-      throw new Error(`Missing actuals: ${actualsPath}`);
+  if (!existsSync(registryPath)) throw new Error(`Missing registry file: ${registryPath}`);
+
+  const reg = loadRegistry(registryPath);
+
+  const markets = args.markets ? csvList(args.markets) : reg.defaults.markets;
+  const horizons = args.horizons ? csvList(args.horizons) : reg.defaults.horizons;
+
+  for (const h of horizons) {
+    for (const m of markets) {
+      const actualsPath = `data/${m}/${h}/actuals.csv`;
+      if (!existsSync(actualsPath)) throw new Error(`Missing actuals: ${actualsPath}`);
+
+      for (const model of reg.models) {
+        const outPath = `data/${m}/${h}/${model.modelId}.json`;
+        ensureDir(outPath);
+
+        const grade = (model.grade || reg.defaults.grade || "EVOO").trim();
+        const engine = model.engine;
+        const variant = model.variant || "last";
+        const seriesKey = model.seriesKey || `${grade}_${m}`;
+
+        await run(python, [
+          "ml_legacy/run_model.py",
+          "--market", m,
+          "--horizon", h,
+          "--model-id", model.modelId,
+          "--engine", engine,
+          "--grade", grade,
+          "--variant", variant,
+          "--series-key", seriesKey,
+          "--actuals", actualsPath,
+          "--out", outPath
+        ]);
+      }
     }
-
-    const outPath = `data/${m}/${horizon}/${modelId}.json`;
-    ensureDir(outPath);
-
-    await run(python, [
-      "ml_legacy/run_model.py",
-      "--market",
-      m,
-      "--horizon",
-      horizon,
-      "--model-id",
-      modelId,
-      "--engine",
-      engine,
-      "--grade",
-      grade,
-      "--actuals",
-      actualsPath,
-      "--out",
-      outPath,
-    ]);
   }
 
-  console.log(
-    `[forecasts] done modelId=${modelId} engine=${engine} horizon=${horizon} grade=${grade} markets=${markets.join(",")}`
-  );
+  console.log(`[forecasts] done registry=${registryPath}`);
 }
 
 main().catch((e) => {

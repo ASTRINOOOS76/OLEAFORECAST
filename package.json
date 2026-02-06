@@ -20,6 +20,7 @@
     "eval:batch": "tsx server/analytics/run-batch.ts",
     "ingest:canonical": "tsx server/ingestion/run-canonical.ts",
     "forecast:run": "tsx server/ingestion/run-forecasts.ts",
+    "py:deps": "python3 -m pip install -r ml_legacy/requirements.txt",
     "build": "node -e \"console.log('build: ok (placeholder)')\"",
     "start": "node -e \"console.log('start: pending')\"",
     "dev": "node -e \"console.log('dev: pending')\""

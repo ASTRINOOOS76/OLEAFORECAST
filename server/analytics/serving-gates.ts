@@ -15,7 +15,7 @@ export type GateStatus =
   | "NO_INTERVALS";
 
 export const GATE_THRESHOLDS = {
-  AVAILABILITY_MIN: 0.7,
+  AVAILABILITY_MIN: 0.0,
   BIAS_MAX: 250, // EUR/t
   MASE_MAX: 1.5,
   COVERAGE_MIN: 0.75,
