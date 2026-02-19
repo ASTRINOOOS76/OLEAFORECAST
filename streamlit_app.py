@@ -79,69 +79,20 @@ def load_forecast(market: str, horizon: str, model_id: str) -> tuple[pd.DataFram
     raise FileNotFoundError(f"forecast not found for {market}/{horizon}/{model_id}")
 
 
-def build_chart(
-    actuals: pd.DataFrame,
-    forecast: pd.DataFrame,
-    compare: pd.DataFrame | None = None,
-    show_actuals: bool = True,
-    show_band: bool = True,
-) -> alt.Chart:
-    layers: list[alt.Chart] = []
-
-    if show_band and not forecast.empty:
-        band = (
-            alt.Chart(forecast)
-            .mark_area(color="#111", opacity=0.08)
-            .encode(
-                x="date:T",
-                y="p10:Q",
-                y2="p90:Q",
-                tooltip=["date:T", "p10:Q", "p50:Q", "p90:Q"],
-            )
-        )
-        layers.append(band)
-
-    if not forecast.empty:
-        p50_line = (
-            alt.Chart(forecast)
-            .mark_line(color="#111", strokeWidth=2)
-            .encode(x="date:T", y="p50:Q", tooltip=["date:T", "p50:Q"])
-        )
-        layers.append(p50_line)
-
-    if show_actuals and not actuals.empty:
-        actuals_line = (
-            alt.Chart(actuals)
-            .mark_line(color="#555", strokeWidth=2)
-            .encode(x="date:T", y="value:Q", tooltip=["date:T", "value:Q"])
-        )
-        layers.append(actuals_line)
-
-    if compare is not None and not compare.empty:
-        compare_line = (
-            alt.Chart(compare)
-            .mark_line(color="#1f77b4", strokeWidth=2, strokeDash=[4, 2])
-            .encode(x="date:T", y="p50:Q", tooltip=["date:T", "p50:Q"])
-        )
-        layers.append(compare_line)
-
-    chart = alt.layer(*layers).properties(height=280)
-    return chart.interactive()
-
-
-def latest_actual(actuals: pd.DataFrame) -> dict[str, Any] | None:
-    if actuals.empty:
+def latest_actual(df: pd.DataFrame) -> dict[str, Any] | None:
+    if df.empty:
         return None
-    ordered = actuals.sort_values("date")
-    row = ordered.iloc[-1]
-    return {"date": row["date"], "value": float(row["value"])}
+    return df.iloc[-1].to_dict()
 
 
 def main() -> None:
-    st.set_page_config(page_title="OleaForecast | Live Prices", layout="wide")
+    st.set_page_config(page_title="OleaForecast | Advanced Dashboard", layout="wide")
+    st.title("OleaForecast Advanced")
+    st.caption("Advanced dashboard: prices, forecasts, model audit, and data explorer.")
 
-    st.title("OleaForecast")
-    st.caption("Live prices and horizon forecasts by country.")
+    use_demo = st.sidebar.checkbox(
+        "Use demo/sample data", value=True, help="Toggle to use generated demo data for all markets."
+    )
 
     run_meta = load_run_meta()
     if run_meta:
@@ -157,125 +108,187 @@ def main() -> None:
     markets = sorted({market for market, _ in pairs})
     horizons = sorted({horizon for _, horizon in pairs})
 
-    st.subheader("Market radar")
-    st.write(
-        "Track live olive oil prices and horizon forecasts by country. "
-        "Pick a market, compare the latest actuals with the winning model, "
-        "and stay ahead of price movement."
-    )
-    st.caption("Data source: local reports/ and data/ snapshots with fixtures fallback.")
+    tab1, tab2, tab3, tab4 = st.tabs(["Live Prices", "Forecasts", "Models", "Data Explorer"])
 
-    kpi_cols = st.columns(3)
-    with kpi_cols[0]:
-        st.metric("Markets tracked", value=len(markets))
-    with kpi_cols[1]:
-        st.metric("Horizons available", value=len(horizons))
-    with kpi_cols[2]:
-        st.metric(
-            "Winner models",
-            value=sum(1 for row in winners if row.get("winnerModelId")),
-        )
-
-    st.subheader("Live Prices")
-    if not pairs:
-        st.info("No markets found. Check data/ and fixtures for actuals.csv files.")
-        return
-
-    region_map = {
-        "Southern EU": ["ES", "IT", "GR", "PT"],
-        "North Africa": ["TN"],
-        "Anatolia": ["TR"],
-    }
-
-    grouped: dict[str, list[tuple[str, str]]] = {key: [] for key in region_map}
-    grouped["Other"] = []
-    for market, horizon in pairs:
-        placed = False
-        for region, markets_list in region_map.items():
-            if market in markets_list:
-                grouped[region].append((market, horizon))
-                placed = True
-                break
-        if not placed:
-            grouped["Other"].append((market, horizon))
-
-    for region, items in grouped.items():
-        if not items:
-            continue
-        st.markdown(f"**{region}**")
-        items = sorted(items, key=lambda row: (row[0], row[1]))
-        weighted_sum = 0.0
-        weighted_count = 0
-        for market, horizon in items:
-            actuals_df, _ = load_actuals(market, horizon)
-            latest = latest_actual(actuals_df)
-            if latest:
-                count = len(actuals_df)
-                if count > 0:
-                    weighted_sum += latest["value"] * count
-                    weighted_count += count
-
-        region_cols = st.columns(2)
-        avg_value = (weighted_sum / weighted_count) if weighted_count else None
-        with region_cols[0]:
+    with tab1:
+        st.subheader("Live Prices by Region")
+        kpi_cols = st.columns(3)
+        with kpi_cols[0]:
+            st.metric("Markets tracked", value=len(markets))
+        with kpi_cols[1]:
+            st.metric("Horizons available", value=len(horizons))
+        with kpi_cols[2]:
             st.metric(
-                "Region avg (weighted)",
-                value="--" if avg_value is None else f"€{avg_value:,.0f}",
+                "Winner models",
+                value=sum(1 for row in winners if row.get("winnerModelId")),
             )
-        with region_cols[1]:
-            st.metric("Markets", value=len(items))
 
-        price_cols = st.columns(2)
-        for idx, (market, horizon) in enumerate(items):
-            actuals_df, _ = load_actuals(market, horizon)
-            latest = latest_actual(actuals_df)
-            label = f"{market} {horizon}"
-            value = latest["value"] if latest else None
-            date_label = latest["date"] if latest else "No actuals"
-            with price_cols[idx % 2]:
-                st.metric(label, value="--" if value is None else f"€{value:,.0f}", delta=date_label)
+        region_map = {
+            "Southern EU": ["ES", "IT", "GR", "PT"],
+            "North Africa": ["TN"],
+            "Anatolia": ["TR"],
+        }
+        grouped: dict[str, list[tuple[str, str]]] = {key: [] for key in region_map}
+        grouped["Other"] = []
+        for market, horizon in pairs:
+            placed = False
+            for region, markets_list in region_map.items():
+                if market in markets_list:
+                    grouped[region].append((market, horizon))
+                    placed = True
+                    break
+            if not placed:
+                grouped["Other"].append((market, horizon))
 
-    st.subheader("Forecast Explorer")
-    market_choice = st.selectbox("Market", options=markets)
-    horizon_choice = st.selectbox("Horizon", options=horizons)
+        for region, items in grouped.items():
+            if not items:
+                continue
+            st.markdown(f"**{region}**")
+            items = sorted(items, key=lambda row: (row[0], row[1]))
+            weighted_sum = 0.0
+            weighted_count = 0
+            for market, horizon in items:
+                actuals_df, _ = load_actuals(market, horizon, use_demo=use_demo)
+                latest = latest_actual(actuals_df)
+                if latest:
+                    count = len(actuals_df)
+                    if count > 0:
+                        weighted_sum += latest["value"] * count
+                        weighted_count += count
 
-    winner_row = next(
-        (
-            row
-            for row in winners
-            if row.get("market") == market_choice and row.get("horizon") == horizon_choice
-        ),
-        None,
-    )
-    winner_model = winner_row.get("winnerModelId") if winner_row else None
-    st.write(f"Winner model: {winner_model or 'none'}")
+            region_cols = st.columns(2)
+            avg_value = (weighted_sum / weighted_count) if weighted_count else None
+            with region_cols[0]:
+                st.metric(
+                    "Region avg (weighted)",
+                    value="--" if avg_value is None else f"€{avg_value:,.0f}",
+                )
+            with region_cols[1]:
+                st.metric("Markets", value=len(items))
 
-    try:
-        actuals_df, actuals_path = load_actuals(market_choice, horizon_choice)
-    except Exception as exc:
-        st.error(f"Failed to load actuals: {exc}")
-        return
+            price_cols = st.columns(2)
+            for idx, (market, horizon) in enumerate(items):
+                actuals_df, _ = load_actuals(market, horizon, use_demo=use_demo)
+                latest = latest_actual(actuals_df)
+                label = f"{market} {horizon}"
+                value = latest["value"] if latest else None
+                date_label = latest["date"] if latest else "No actuals"
+                with price_cols[idx % 2]:
+                    st.metric(label, value="--" if value is None else f"€{value:,.0f}", delta=date_label)
 
-    forecast_df = pd.DataFrame()
-    if winner_model:
+    with tab2:
+        st.subheader("Forecast Explorer")
+        market_choice = st.selectbox("Market", options=markets, key="f_market")
+        horizon_choice = st.selectbox("Horizon", options=horizons, key="f_horizon")
+        winner_row = next(
+            (
+                row
+                for row in winners
+                if row.get("market") == market_choice and row.get("horizon") == horizon_choice
+            ),
+            None,
+        )
+        winner_model = winner_row.get("winnerModelId") if winner_row else None
+        st.write(f"Winner model: {winner_model or 'none'}")
+
+        all_models = sorted({row.get("winnerModelId") for row in winners if row.get("market") == market_choice and row.get("horizon") == horizon_choice and row.get("winnerModelId")})
+        model_choice = st.selectbox("Model", options=all_models if all_models else [winner_model or "none"], key="f_model")
+
         try:
-            forecast_df, forecast_json, forecast_path = load_forecast(
-                market_choice, horizon_choice, winner_model
-            )
-            st.caption(f"forecast: {forecast_path}")
+            actuals_df, actuals_path = load_actuals(market_choice, horizon_choice, use_demo=use_demo)
         except Exception as exc:
-            st.warning(f"Failed to load forecast: {exc}")
+            st.error(f"Failed to load actuals: {exc}")
+            return
 
-    st.caption(f"actuals: {actuals_path}")
+        forecast_df = pd.DataFrame()
+        if model_choice and model_choice != "none":
+            try:
+                forecast_df, forecast_json, forecast_path = load_forecast(
+                    market_choice, horizon_choice, model_choice, use_demo=use_demo
+                )
+                st.caption(f"forecast: {forecast_path}")
+            except Exception as exc:
+                st.warning(f"Failed to load forecast: {exc}")
 
-    chart = build_chart(actuals_df, forecast_df, compare=None, show_actuals=True, show_band=True)
-    st.altair_chart(chart, use_container_width=True)
+        st.caption(f"actuals: {actuals_path}")
 
-    latest = latest_actual(actuals_df)
-    if latest:
-        st.caption(f"Latest actual: {latest['date']} at €{latest['value']:,.0f}")
-    if not winner_model:
-        st.info("No winner model recorded for this market/horizon.")
+        chart = build_chart(actuals_df, forecast_df, compare=None, show_actuals=True, show_band=True)
+        st.altair_chart(chart, use_container_width=True)
+
+        latest = latest_actual(actuals_df)
+        if latest:
+            st.caption(f"Latest actual: {latest['date']} at €{latest['value']:,.0f}")
+        if not winner_model:
+            st.info("No winner model recorded for this market/horizon.")
+
+    with tab3:
+        st.subheader("Model Audit & Comparison")
+        st.write("Compare models, see eligibility, and audit reasons.")
+        market_choice = st.selectbox("Market", options=markets, key="m_market")
+        horizon_choice = st.selectbox("Horizon", options=horizons, key="m_horizon")
+        rows = [row for row in winners if row.get("market") == market_choice and row.get("horizon") == horizon_choice]
+        if not rows:
+            st.info("No models found for this selection.")
+        else:
+            st.dataframe([
+                {
+                    "Model": row.get("winnerModelId"),
+                    "Top-3": ", ".join(row.get("top3", []) or []),
+                    "Ineligible": len(row.get("ineligible", []) or []),
+                    "Reasons": "; ".join(
+                        ", ".join(item.get("reasons", [])) for item in row.get("ineligible", []) or []
+                    ),
+                }
+                for row in rows
+            ], use_container_width=True, hide_index=True)
+
+    with tab4:
+        st.subheader("Data Explorer")
+        st.write("Browse and download raw actuals and forecasts.")
+        market_choice = st.selectbox("Market", options=markets, key="d_market")
+        horizon_choice = st.selectbox("Horizon", options=horizons, key="d_horizon")
+        try:
+            actuals_df, actuals_path = load_actuals(market_choice, horizon_choice, use_demo=use_demo)
+            st.markdown("**Actuals (tail)**")
+            st.dataframe(actuals_df.tail(20), use_container_width=True, hide_index=True)
+            st.download_button(
+                "Download actuals.csv",
+                actuals_df.to_csv(index=False).encode("utf-8"),
+                file_name=f"{market_choice}_{horizon_choice}_actuals.csv",
+                mime="text/csv",
+            )
+        except Exception as exc:
+            st.warning(f"Failed to load actuals: {exc}")
+        winner_row = next(
+            (
+                row
+                for row in winners
+                if row.get("market") == market_choice and row.get("horizon") == horizon_choice
+            ),
+            None,
+        )
+        winner_model = winner_row.get("winnerModelId") if winner_row else None
+        if winner_model:
+            try:
+                forecast_df, forecast_json, forecast_path = load_forecast(
+                    market_choice, horizon_choice, winner_model, use_demo=use_demo
+                )
+                st.markdown("**Winner forecast (series)**")
+                st.dataframe(forecast_df, use_container_width=True, hide_index=True)
+                st.download_button(
+                    "Download forecast.json",
+                    json.dumps(forecast_json, indent=2).encode("utf-8"),
+                    file_name=f"{market_choice}_{horizon_choice}_{winner_model}.json",
+                    mime="application/json",
+                )
+                st.download_button(
+                    "Download forecast.csv",
+                    forecast_df.to_csv(index=False).encode("utf-8"),
+                    file_name=f"{market_choice}_{horizon_choice}_{winner_model}.csv",
+                    mime="text/csv",
+                )
+            except Exception as exc:
+                st.warning(f"Failed to load forecast: {exc}")
 
 
 if __name__ == "__main__":
