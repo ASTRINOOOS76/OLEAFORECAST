@@ -85,6 +85,50 @@ def latest_actual(df: pd.DataFrame) -> dict[str, Any] | None:
     return df.iloc[-1].to_dict()
 
 
+def build_chart(
+    actuals_df: pd.DataFrame,
+    forecast_df: pd.DataFrame,
+    compare: pd.DataFrame = None,
+    show_actuals: bool = True,
+    show_band: bool = True
+):
+    base = alt.Chart().encode(
+        x=alt.X("date:T", title="Date")
+    )
+    layers = []
+    if show_actuals and not actuals_df.empty:
+        layers.append(
+            base.mark_line(color="#222", strokeWidth=2).encode(
+                y=alt.Y("value:Q", title="Price (€)", scale=alt.Scale(zero=False)),
+                tooltip=["date:T", alt.Tooltip("value:Q", title="Actual")],
+            ).transform_calculate(series='"Actuals"').properties(data=actuals_df)
+        )
+    if not forecast_df.empty:
+        layers.append(
+            base.mark_line(color="#1f77b4", strokeDash=[4,2]).encode(
+                y=alt.Y("value:Q"),
+                tooltip=["date:T", alt.Tooltip("value:Q", title="Forecast")],
+            ).transform_calculate(series='"Forecast"').properties(data=forecast_df)
+        )
+        if show_band and "lower" in forecast_df.columns and "upper" in forecast_df.columns:
+            layers.append(
+                base.mark_area(opacity=0.15, color="#1f77b4").encode(
+                    y="lower:Q",
+                    y2="upper:Q",
+                    tooltip=["date:T", "lower:Q", "upper:Q"],
+                ).properties(data=forecast_df)
+            )
+    if compare is not None and not compare.empty:
+        layers.append(
+            base.mark_line(color="#e377c2", strokeDash=[2,2]).encode(
+                y=alt.Y("value:Q"),
+                tooltip=["date:T", alt.Tooltip("value:Q", title="Compare")],
+            ).transform_calculate(series='"Compare"').properties(data=compare)
+        )
+    chart = alt.layer(*layers).resolve_scale(y="shared").properties(height=350)
+    return chart
+
+
 def main() -> None:
     st.set_page_config(page_title="OleaForecast | Advanced Dashboard", layout="wide")
     st.title("OleaForecast Advanced")
