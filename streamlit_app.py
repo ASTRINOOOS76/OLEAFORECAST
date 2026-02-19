@@ -52,31 +52,46 @@ def list_market_horizon_pairs() -> list[tuple[str, str]]:
     return sorted(pairs)
 
 
-def load_actuals(market: str, horizon: str) -> tuple[pd.DataFrame, str]:
-    paths = [
-        DATA_DIR / market / horizon / "actuals.csv",
-        FIXTURES_DIR / market / horizon / "actuals.csv",
-    ]
-    for path in paths:
+def load_actuals(market: str, horizon: str, use_demo: bool = False) -> tuple[pd.DataFrame, str]:
+    if use_demo:
+        path = DATA_DIR / market / horizon / "actuals.csv"
         if path.exists():
             df = pd.read_csv(path)
-            if list(df.columns) != ["date", "value"]:
-                raise ValueError(f"Bad actuals header in {path}")
             return df, str(path.relative_to(ROOT))
-    raise FileNotFoundError(f"actuals not found for {market}/{horizon}")
+        raise FileNotFoundError(f"demo actuals not found for {market}/{horizon}")
+    else:
+        paths = [
+            DATA_DIR / market / horizon / "actuals.csv",
+            FIXTURES_DIR / market / horizon / "actuals.csv",
+        ]
+        for path in paths:
+            if path.exists():
+                df = pd.read_csv(path)
+                if list(df.columns) != ["date", "value"]:
+                    raise ValueError(f"Bad actuals header in {path}")
+                return df, str(path.relative_to(ROOT))
+        raise FileNotFoundError(f"actuals not found for {market}/{horizon}")
 
 
-def load_forecast(market: str, horizon: str, model_id: str) -> tuple[pd.DataFrame, dict[str, Any], str]:
-    paths = [
-        DATA_DIR / market / horizon / f"{model_id}.json",
-        FIXTURES_DIR / market / horizon / f"{model_id}.json",
-    ]
-    for path in paths:
+def load_forecast(market: str, horizon: str, model_id: str, use_demo: bool = False) -> tuple[pd.DataFrame, dict[str, Any], str]:
+    if use_demo:
+        path = DATA_DIR / market / horizon / f"{model_id}.json"
         if path.exists():
             payload = json.loads(path.read_text(encoding="utf-8"))
             df = pd.DataFrame(payload.get("series", []))
             return df, payload, str(path.relative_to(ROOT))
-    raise FileNotFoundError(f"forecast not found for {market}/{horizon}/{model_id}")
+        raise FileNotFoundError(f"demo forecast not found for {market}/{horizon}/{model_id}")
+    else:
+        paths = [
+            DATA_DIR / market / horizon / f"{model_id}.json",
+            FIXTURES_DIR / market / horizon / f"{model_id}.json",
+        ]
+        for path in paths:
+            if path.exists():
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                df = pd.DataFrame(payload.get("series", []))
+                return df, payload, str(path.relative_to(ROOT))
+        raise FileNotFoundError(f"forecast not found for {market}/{horizon}/{model_id}")
 
 
 def latest_actual(df: pd.DataFrame) -> dict[str, Any] | None:
