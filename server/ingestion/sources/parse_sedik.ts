@@ -58,7 +58,8 @@ export async function ingestSedik(src: CatalogSource): Promise<ObservationRaw[]>
     seen.add(k);
     out.push(r);
   }
-  return out.length ? out : [{
+  if (out.length) return out;
+  const fallback: ObservationRaw = {
     sourceId: src.sourceId,
     market: src.market,
     grade: "EVOO",
@@ -70,5 +71,6 @@ export async function ingestSedik(src: CatalogSource): Promise<ObservationRaw[]>
     url: src.url,
     fetchedAt: isoNow(),
     meta: { note: "No parseable rows" }
-  }].filter(o => Number.isFinite(o.value));
+  };
+  return [fallback].filter(o => Number.isFinite(o.value));
 }

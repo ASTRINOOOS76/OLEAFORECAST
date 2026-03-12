@@ -1,4 +1,4 @@
-import http from "http";
+import * as http from "http";
 import { existsSync, readFileSync, readdirSync, statSync } from "fs";
 import { extname, join, resolve } from "path";
 import { URL } from "url";
@@ -132,7 +132,7 @@ function sendJson(res: http.ServerResponse, status: number, payload: unknown) {
 
 function sendText(res: http.ServerResponse, status: number, body: string, type = "text/plain") {
   res.writeHead(status, {
-    "Content-Type": `${type}; charset=utf-8",
+    "Content-Type": `${type}; charset=utf-8`,
     "Cache-Control": "no-store"
   });
   res.end(body);
@@ -147,13 +147,13 @@ function serveStatic(res: http.ServerResponse, filePath: string) {
   const ext = extname(filePath);
   const type = ext === ".html" ? "text/html" : "application/octet-stream";
   res.writeHead(200, {
-    "Content-Type": `${type}; charset=utf-8",
+    "Content-Type": `${type}; charset=utf-8`,
     "Cache-Control": "no-store"
   });
   res.end(content);
 }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer((req: http.IncomingMessage, res: http.ServerResponse) => {
   if (!req.url) {
     sendText(res, 400, "Bad request");
     return;
